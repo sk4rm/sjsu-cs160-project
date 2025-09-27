@@ -1,5 +1,13 @@
 # Elysia with Bun runtime
 
+## Prerequisites
+
+Install the `bun` JavaScript runtime:
+
+```powershell
+powershell -c "irm bun.sh/install.ps1 | iex"
+```
+
 ## Getting Started
 To get started with this template, simply paste this command into your terminal:
 ```bash
