@@ -1,8 +1,12 @@
 # Eco-Leveling
 
 ## Client
-
-TODO
+To view web application on browser open terminal: 
+```bash
+cd frontend
+bun run dev
+```
+Open http://localhost:5173/ to see results.
 
 ## Server
 
