@@ -82,3 +82,14 @@ const app = new Elysia()
 
 console.info(`🍂 Eco-Leveling backend is running at http://${app.server?.hostname}:${app.server?.port}`);
 console.info(`⚙️ Please refer to API documentation at http://${app.server?.hostname}:${app.server?.port}/openapi`);
+
+
+//tester
+// import { Elysia } from 'elysia'
+
+// const app = new Elysia()
+
+// app.get('/api/hello', () => 'Hello from Elysia!')
+
+// app.listen(3000)
+// console.log(`🦊 Elysia running on http://localhost:3000`)
