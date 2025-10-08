@@ -89,7 +89,10 @@ console.info(`⚙️ Please refer to API documentation at http://${app.server?.h
 
 // const app = new Elysia()
 
-// app.get('/api/hello', () => 'Hello from Elysia!')
+// app.get('/api/user', () => ({
+//   name: 'Eco',
+//   role: 'developer'
+// }))
 
 // app.listen(3000)
-// console.log(`🦊 Elysia running on http://localhost:3000`)
+// console.log('🦊 Elysia running on http://localhost:3000')
