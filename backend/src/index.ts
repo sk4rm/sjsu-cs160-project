@@ -164,6 +164,7 @@ const app = new Elysia()
         .group("/comments", (comments) => comments
 
             .post("", ({ body }) => {
+                // TODO Validate post_id and author_id; disable commenting on non-existent posts by non-existent users.
                 return db
                     .collection("comments")
                     .insertOne({
