@@ -4,6 +4,7 @@
 To view web application on browser open terminal: 
 ```bash
 cd frontend
+bun install
 bun run dev
 ```
 Open http://localhost:5173/ to see results.
@@ -19,15 +20,27 @@ powershell -c "irm bun.sh/install.ps1 | iex"
 ```
 
 ### Getting Started
-To get started with this template, simply paste this command into your terminal:
-```bash
-bun create elysia ./elysia-example
+
+Create a file named `.env` to store all your secrets:
+
+```env
+URI_MONGO=<Insert connection string here>
 ```
 
-### Development
+For example:
+
+```env
+URI_MONGO=mongodb+srv://username:password@dev-aws-oregon-1.jh47pzc.mongodb.net/?retryWrites=true&w=majority&appName=dev-aws-oregon-1
+```
+
 To start the development server run:
-```bash
+
+```powershell
+cd backend
+bun install
 bun run dev
 ```
 
-Open http://localhost:3000/ with your browser to see the result.
+Server is hosted on http://localhost:3000.
+
+OpenAPI/Swagger is supported at http://localhost:3000/openapi.
