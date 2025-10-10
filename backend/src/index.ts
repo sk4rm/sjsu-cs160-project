@@ -29,7 +29,7 @@ const app = new Elysia()
 
         .group("/users", (users) => users
 
-            .post("/", ({ body }) => {
+            .post("", ({ body }) => {
                 return db
                     .collection("users")
                     .insertOne({
@@ -100,15 +100,17 @@ const app = new Elysia()
 
         .group("/posts", (posts) => posts
 
-            .post("/", ({ body }) => {
+            .post("", ({ body }) => {
                 return db
                     .collection("posts")
                     .insertOne({
+                        author_id: new ObjectId(body.author_id),
                         image_url: body.image_url,
                         body: body.body
                     });
             }, {
                 body: t.Object({
+                    author_id: t.String(),
                     image_url: t.Optional(t.String()),
                     body: t.String()
                 })
@@ -159,7 +161,65 @@ const app = new Elysia()
 
         )
 
-        .group("/comments", (comments) => comments)
+        .group("/comments", (comments) => comments
+
+            .post("", ({ body }) => {
+                return db
+                    .collection("comments")
+                    .insertOne({
+                        post_id: new ObjectId(body.post_id),
+                        author_id: new ObjectId(body.author_id),
+                        body: body.body,
+                        likes: 0
+                    });
+            }, {
+                body: t.Object({
+                    post_id: t.String(),
+                    author_id: t.String(),
+                    body: t.String()
+                })
+            })
+
+            .get("/:id", ({ params }) => {
+                return db
+                    .collection("comments")
+                    .findOne({
+                        _id: new ObjectId(params.id)
+                    });
+            }, {
+                params: t.Object({
+                    id: t.String()
+                })
+            })
+
+            .patch("/:id", async ({ params, body }) => {
+                const query = { _id: new ObjectId(params.id) };
+                const update = { $set: { body: body.body } };
+                const options = {};
+
+                return db
+                    .collection("comments")
+                    .updateOne(query, update, options);
+            }, {
+                params: t.Object({
+                    id: t.String()
+                }),
+                body: t.Object({
+                    body: t.Optional(t.String()),
+                })
+            })
+
+            .delete("/:id", ({ params }) => {
+                return db
+                    .collection("comments")
+                    .deleteOne({ _id: new ObjectId(params.id) });
+            }, {
+                params: t.Object({
+                    id: t.String()
+                })
+            })
+
+        )
 
     )
 
