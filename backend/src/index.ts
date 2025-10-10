@@ -27,27 +27,23 @@ const app = new Elysia()
 
     .group("/api", (api) => api
 
-        .group("/users", (users_api) => users_api
+        .group("/users", (users) => users
 
             .post("/", ({ body }) => {
                 return db
                     .collection("users")
                     .insertOne({
                         name: body.name,
-                        bio: body.bio,
                         password: body.password,
-                        points: body.points,
                         profile_pic_url: body.profile_pic_url,
-                        is_moderator: body.is_moderator
+                        points: 0,
+                        is_moderator: false
                     });
             }, {
                 body: t.Object({
                     name: t.String(),
-                    bio: t.Optional(t.String()),
                     password: t.String(),
-                    points: t.Optional(t.Integer()),
                     profile_pic_url: t.Optional(t.String()),
-                    is_moderator: t.Optional(t.Boolean())
                 })
             })
 
@@ -63,13 +59,12 @@ const app = new Elysia()
                 })
             })
 
-            .patch("/:id", ({ params, body }) => {
+            .patch("/:id", async ({ params, body }) => {
                 const query = { _id: new ObjectId(params.id) };
-                const update = {
-                    $set: {
-                        name: body.name
-                    }
-                };
+                const current_user = await db.collection("users").findOne(query);
+                const update = { $set: { ...current_user, ...body } };
+                console.log(current_user);
+                console.log(body);
                 const options = {};
 
                 return db
@@ -102,6 +97,69 @@ const app = new Elysia()
             })
 
         )
+
+        .group("/posts", (posts) => posts
+
+            .post("/", ({ body }) => {
+                return db
+                    .collection("posts")
+                    .insertOne({
+                        image_url: body.image_url,
+                        body: body.body
+                    });
+            }, {
+                body: t.Object({
+                    image_url: t.Optional(t.String()),
+                    body: t.String()
+                })
+            })
+
+            .get("/:id", ({ params }) => {
+                return db
+                    .collection("posts")
+                    .findOne({
+                        _id: new ObjectId(params.id)
+                    });
+            }, {
+                params: t.Object({
+                    id: t.String()
+                })
+            })
+
+            .patch("/:id", async ({ params, body }) => {
+                const query = { _id: new ObjectId(params.id) };
+                const current_post = await db.collection("posts").findOne(query);
+                const update = { $set: { ...current_post, ...body } };
+                const options = {};
+
+                return db
+                    .collection("posts")
+                    .updateOne(query, update, options);
+            }, {
+                params: t.Object({
+                    id: t.String()
+                }),
+                body: t.Object({
+                    image_url: t.Optional(t.String()),
+                    body: t.Optional(t.String())
+                })
+            })
+
+            .delete("/:id", ({ params }) => {
+                return db
+                    .collection("posts")
+                    .deleteOne({
+                        _id: new ObjectId(params.id)
+                    });
+            }, {
+                params: t.Object({
+                    id: t.String()
+                })
+            })
+
+        )
+
+        .group("/comments", (comments) => comments)
 
     )
 
