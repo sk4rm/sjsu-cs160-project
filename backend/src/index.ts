@@ -2,6 +2,7 @@ import { Elysia, file, t } from "elysia";
 import { openapi } from "@elysiajs/openapi";
 import { staticPlugin } from "@elysiajs/static";
 import { MongoClient, ObjectId, ServerApiVersion } from "mongodb";
+import { cors } from "@elysiajs/cors";
 
 if (Bun.env.URI_MONGO === undefined) {
     throw new Error("Environment variable URI_MONGO not specified.");
@@ -16,7 +17,8 @@ const db = client.db("eco-leveling");
 
 const app = new Elysia()
     .use(staticPlugin())
-
+    
+    .use(cors({ origin: "http://localhost:5173", credentials: true}))
     .use(openapi({
         exclude: {
             paths: ["/public/*"]
@@ -221,6 +223,45 @@ const app = new Elysia()
             })
 
         )
+
+        .group("auth", (auth) => auth
+            // Register (plain for now)
+            .post("/register", async ({ body, set }) => {
+                const exists = await db.collection("users").findOne({ name: body.name });
+                if (exists) { set.status = 409; return { error: "User already exists" }; }
+
+                const result = await db.collection("users").insertOne({
+                    name: body.name,
+                    password: body.password,        // PLAIN for now (dev only)
+                    profile_pic_url: body.profile_pic_url ?? null,
+                    points: 0,
+                    is_moderator: false
+                });
+                const user = await db.collection("users").findOne({ _id: result.insertedId });
+                return { id: user!._id.toString(), name: user!.name, profile_pic_url: user!.profile_pic_url };
+            }, { body: t.Object({
+                name: t.String({ minLength: 3 }),
+                password: t.String({ minLength: 3 }),
+                profile_pic_url: t.Optional(t.String())
+                })
+            })
+
+            // Login (plain compare)
+            .post("/login", async ({ body, set }) => {
+                const user = await db.collection("users").findOne({ name: body.name });
+                if (!user || user.password !== body.password) {
+                    set.status = 401;
+                    return { error: "Invalid credentials" };
+                }
+                return { id: user._id.toString(), name: user.name, profile_pic_url: user.profile_pic_url };
+            }, { body: t.Object({
+                name: t.String(),
+                password: t.String()
+                })
+            })
+        )
+
+
 
     )
 
