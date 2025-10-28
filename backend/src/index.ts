@@ -1,8 +1,8 @@
-import { Elysia, file, t } from "elysia";
-import { openapi } from "@elysiajs/openapi";
-import { staticPlugin } from "@elysiajs/static";
-import { MongoClient, ObjectId, ServerApiVersion } from "mongodb";
-import { cors } from "@elysiajs/cors";
+import {Elysia, file, t} from "elysia";
+import {openapi} from "@elysiajs/openapi";
+import {staticPlugin} from "@elysiajs/static";
+import {MongoClient, ObjectId, ServerApiVersion} from "mongodb";
+import {cors} from "@elysiajs/cors";
 
 if (Bun.env.URI_MONGO === undefined) {
     throw new Error("Environment variable URI_MONGO not specified.");
@@ -17,8 +17,9 @@ const db = client.db("eco-leveling");
 
 const app = new Elysia()
     .use(staticPlugin())
-    
-    .use(cors({ origin: "http://localhost:5173", credentials: true}))
+
+    .use(cors({origin: "http://localhost:5173", credentials: true}))
+
     .use(openapi({
         exclude: {
             paths: ["/public/*"]
@@ -31,7 +32,7 @@ const app = new Elysia()
 
         .group("/users", (users) => users
 
-            .post("", ({ body }) => {
+            .post("", ({body}) => {
                 return db
                     .collection("users")
                     .insertOne({
@@ -43,13 +44,11 @@ const app = new Elysia()
                     });
             }, {
                 body: t.Object({
-                    name: t.String(),
-                    password: t.String(),
-                    profile_pic_url: t.Optional(t.String()),
+                    name: t.String(), password: t.String(), profile_pic_url: t.Optional(t.String()),
                 })
             })
 
-            .get("/:id", ({ params }) => {
+            .get("/:id", ({params}) => {
                 return db
                     .collection("users")
                     .findOne({
@@ -61,10 +60,10 @@ const app = new Elysia()
                 })
             })
 
-            .patch("/:id", async ({ params, body }) => {
-                const query = { _id: new ObjectId(params.id) };
+            .patch("/:id", async ({params, body}) => {
+                const query = {_id: new ObjectId(params.id)};
                 const current_user = await db.collection("users").findOne(query);
-                const update = { $set: { ...current_user, ...body } };
+                const update = {$set: {...current_user, ...body}};
                 console.log(current_user);
                 console.log(body);
                 const options = {};
@@ -75,8 +74,7 @@ const app = new Elysia()
             }, {
                 params: t.Object({
                     id: t.String()
-                }),
-                body: t.Object({
+                }), body: t.Object({
                     name: t.Optional(t.String()),
                     bio: t.Optional(t.String()),
                     password: t.Optional(t.String()),
@@ -86,7 +84,7 @@ const app = new Elysia()
                 })
             })
 
-            .delete("/:id", ({ params }) => {
+            .delete("/:id", ({params}) => {
                 return db
                     .collection("users")
                     .deleteOne({
@@ -96,29 +94,23 @@ const app = new Elysia()
                 params: t.Object({
                     id: t.String()
                 })
-            })
-
-        )
+            }))
 
         .group("/posts", (posts) => posts
 
-            .post("", ({ body }) => {
+            .post("", ({body}) => {
                 return db
                     .collection("posts")
                     .insertOne({
-                        author_id: new ObjectId(body.author_id),
-                        image_url: body.image_url,
-                        body: body.body
+                        author_id: new ObjectId(body.author_id), image_url: body.image_url, body: body.body
                     });
             }, {
                 body: t.Object({
-                    author_id: t.String(),
-                    image_url: t.Optional(t.String()),
-                    body: t.String()
+                    author_id: t.String(), image_url: t.Optional(t.String()), body: t.String()
                 })
             })
 
-            .get("/:id", ({ params }) => {
+            .get("/:id", ({params}) => {
                 return db
                     .collection("posts")
                     .findOne({
@@ -130,10 +122,10 @@ const app = new Elysia()
                 })
             })
 
-            .patch("/:id", async ({ params, body }) => {
-                const query = { _id: new ObjectId(params.id) };
+            .patch("/:id", async ({params, body}) => {
+                const query = {_id: new ObjectId(params.id)};
                 const current_post = await db.collection("posts").findOne(query);
-                const update = { $set: { ...current_post, ...body } };
+                const update = {$set: {...current_post, ...body}};
                 const options = {};
 
                 return db
@@ -142,14 +134,12 @@ const app = new Elysia()
             }, {
                 params: t.Object({
                     id: t.String()
-                }),
-                body: t.Object({
-                    image_url: t.Optional(t.String()),
-                    body: t.Optional(t.String())
+                }), body: t.Object({
+                    image_url: t.Optional(t.String()), body: t.Optional(t.String())
                 })
             })
 
-            .delete("/:id", ({ params }) => {
+            .delete("/:id", ({params}) => {
                 return db
                     .collection("posts")
                     .deleteOne({
@@ -159,13 +149,11 @@ const app = new Elysia()
                 params: t.Object({
                     id: t.String()
                 })
-            })
-
-        )
+            }))
 
         .group("/comments", (comments) => comments
 
-            .post("", ({ body }) => {
+            .post("", ({body}) => {
                 // TODO Validate post_id and author_id; disable commenting on non-existent posts by non-existent users.
                 return db
                     .collection("comments")
@@ -177,13 +165,11 @@ const app = new Elysia()
                     });
             }, {
                 body: t.Object({
-                    post_id: t.String(),
-                    author_id: t.String(),
-                    body: t.String()
+                    post_id: t.String(), author_id: t.String(), body: t.String()
                 })
             })
 
-            .get("/:id", ({ params }) => {
+            .get("/:id", ({params}) => {
                 return db
                     .collection("comments")
                     .findOne({
@@ -195,9 +181,9 @@ const app = new Elysia()
                 })
             })
 
-            .patch("/:id", async ({ params, body }) => {
-                const query = { _id: new ObjectId(params.id) };
-                const update = { $set: { body: body.body } };
+            .patch("/:id", async ({params, body}) => {
+                const query = {_id: new ObjectId(params.id)};
+                const update = {$set: {body: body.body}};
                 const options = {};
 
                 return db
@@ -206,64 +192,57 @@ const app = new Elysia()
             }, {
                 params: t.Object({
                     id: t.String()
-                }),
-                body: t.Object({
+                }), body: t.Object({
                     body: t.Optional(t.String()),
                 })
             })
 
-            .delete("/:id", ({ params }) => {
+            .delete("/:id", ({params}) => {
                 return db
                     .collection("comments")
-                    .deleteOne({ _id: new ObjectId(params.id) });
+                    .deleteOne({_id: new ObjectId(params.id)});
             }, {
                 params: t.Object({
                     id: t.String()
                 })
-            })
+            }))
 
-        )
-
-        .group("auth", (auth) => auth
+        .group("/auth", (auth) => auth
             // Register (plain for now)
-            .post("/register", async ({ body, set }) => {
-                const exists = await db.collection("users").findOne({ name: body.name });
-                if (exists) { set.status = 409; return { error: "User already exists" }; }
+            .post("/register", async ({body, set}) => {
+                const exists = await db.collection("users").findOne({name: body.name});
+                if (exists) {
+                    set.status = 409;
+                    return {error: "User already exists"};
+                }
 
                 const result = await db.collection("users").insertOne({
-                    name: body.name,
-                    password: body.password,        // PLAIN for now (dev only)
-                    profile_pic_url: body.profile_pic_url ?? null,
-                    points: 0,
-                    is_moderator: false
+                    name: body.name, password: body.password,        // PLAIN for now (dev only)
+                    profile_pic_url: body.profile_pic_url ?? null, points: 0, is_moderator: false
                 });
-                const user = await db.collection("users").findOne({ _id: result.insertedId });
-                return { id: user!._id.toString(), name: user!.name, profile_pic_url: user!.profile_pic_url };
-            }, { body: t.Object({
-                name: t.String({ minLength: 3 }),
-                password: t.String({ minLength: 3 }),
-                profile_pic_url: t.Optional(t.String())
+                const user = await db.collection("users").findOne({_id: result.insertedId});
+                return {id: user!._id.toString(), name: user!.name, profile_pic_url: user!.profile_pic_url};
+            }, {
+                body: t.Object({
+                    name: t.String({minLength: 3}),
+                    password: t.String({minLength: 3}),
+                    profile_pic_url: t.Optional(t.String())
                 })
             })
 
             // Login (plain compare)
-            .post("/login", async ({ body, set }) => {
-                const user = await db.collection("users").findOne({ name: body.name });
+            .post("/login", async ({body, set}) => {
+                const user = await db.collection("users").findOne({name: body.name});
                 if (!user || user.password !== body.password) {
                     set.status = 401;
-                    return { error: "Invalid credentials" };
+                    return {error: "Invalid credentials"};
                 }
-                return { id: user._id.toString(), name: user.name, profile_pic_url: user.profile_pic_url };
-            }, { body: t.Object({
-                name: t.String(),
-                password: t.String()
+                return {id: user._id.toString(), name: user.name, profile_pic_url: user.profile_pic_url};
+            }, {
+                body: t.Object({
+                    name: t.String(), password: t.String()
                 })
-            })
-        )
-
-
-
-    )
+            })))
 
     .listen(3000);
 
