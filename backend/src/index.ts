@@ -8,6 +8,30 @@ if (Bun.env.URI_MONGO === undefined) {
     throw new Error("Environment variable URI_MONGO not specified.");
 }
 
+// TODO Make into a service.
+async function addUser(name: string, password: string, profile_pic_url?: string) {
+    const userData = {
+        name: name,
+        password: await Bun.password.hash(password),
+        points: 0,
+        is_moderator: false,
+
+        // Only add this field if supplied to eliminate null fields.
+        ...(profile_pic_url && { profile_pic_url: profile_pic_url })
+    };
+
+
+    console.info(`Creating new user: ${name}`);
+
+    const result = await db
+        .collection("users")
+        .insertOne(userData);
+
+    console.info(`Created new user with ID: ${result.insertedId}`)
+
+    return result;
+}
+
 const client = new MongoClient(Bun.env.URI_MONGO, {
     serverApi: {
         version: ServerApiVersion.v1, strict: true, deprecationErrors: true
@@ -33,15 +57,7 @@ const app = new Elysia()
         .group("/users", (users) => users
 
             .post("", ({ body }) => {
-                return db
-                    .collection("users")
-                    .insertOne({
-                        name: body.name,
-                        password: body.password,
-                        profile_pic_url: body.profile_pic_url,
-                        points: 0,
-                        is_moderator: false
-                    });
+                return addUser(body.name, body.password, body.profile_pic_url);
             }, {
                 body: t.Object({
                     name: t.String(), password: t.String(), profile_pic_url: t.Optional(t.String()),
@@ -216,13 +232,7 @@ const app = new Elysia()
                     return { error: "User already exists" };
                 }
 
-                // Hash password
-                const passwordHash = Bun.password.hashSync(body.password);
-
-                const result = await db.collection("users").insertOne({
-                    name: body.name, password: passwordHash,        // PLAIN for now (dev only)
-                    profile_pic_url: body.profile_pic_url ?? null, points: 0, is_moderator: false
-                });
+                const result = await addUser(body.name, body.password, body.profile_pic_url);
                 const user = await db.collection("users").findOne({ _id: result.insertedId });
                 return { id: user!._id.toString(), name: user!.name, profile_pic_url: user!.profile_pic_url };
             }, {
