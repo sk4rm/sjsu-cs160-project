@@ -3,17 +3,20 @@ import { ObjectId } from "mongodb";
 
 import { User } from "./service";
 import { database } from "../../db";
+import { UserModel } from "./model";
 
 export const user = new Elysia({ prefix: '/api/users' })
     .post(
         "",
         ({ body }) => {
-            return User.createNew(body.name, body.password, body.profile_pic_url);
+            return User.createNew(
+                body.name,
+                body.password,
+                body.profile_pic_url
+            );
         },
         {
-            body: t.Object({
-                name: t.String(), password: t.String(), profile_pic_url: t.Optional(t.String()),
-            })
+            body: UserModel.registrationBody
         }
     )
     .get(
@@ -26,19 +29,18 @@ export const user = new Elysia({ prefix: '/api/users' })
                 });
         },
         {
-            params: t.Object({
-                id: t.String()
-            })
+            params: UserModel.id
         }
     )
     .patch(
         "/:id",
         async ({ params, body }) => {
             const query = { _id: new ObjectId(params.id) };
-            const current_user = await database.collection("users").findOne(query);
+            const current_user = await database
+                .collection("users")
+                .findOne(query);
+
             const update = { $set: { ...current_user, ...body } };
-            console.log(current_user);
-            console.log(body);
             const options = {};
 
             return database
@@ -46,16 +48,8 @@ export const user = new Elysia({ prefix: '/api/users' })
                 .updateOne(query, update, options);
         },
         {
-            params: t.Object({
-                id: t.String()
-            }), body: t.Object({
-                name: t.Optional(t.String()),
-                bio: t.Optional(t.String()),
-                password: t.Optional(t.String()),
-                points: t.Optional(t.Integer()),
-                profile_pic_url: t.Optional(t.String()),
-                is_moderator: t.Optional(t.Boolean())
-            })
+            params: UserModel.id,
+            body: UserModel.patchBody
         }
     )
     .delete(
@@ -68,8 +62,6 @@ export const user = new Elysia({ prefix: '/api/users' })
                 });
         },
         {
-            params: t.Object({
-                id: t.String()
-            })
+            params: UserModel.id,
         }
     );
