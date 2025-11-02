@@ -5,6 +5,7 @@ import { ObjectId } from "mongodb";
 import { cors } from "@elysiajs/cors";
 import { database } from "./db";
 import { User } from "./modules/user/service";
+import { user } from "./modules/user";
 
 const db = database;
 
@@ -21,65 +22,9 @@ const app = new Elysia()
 
     .get("/favicon.ico", () => file("favicon.ico"))
 
+    .use(user)
+
     .group("/api", (api) => api
-
-        .group("/users", (users) => users
-
-            .post("", ({ body }) => {
-                return User.createNew(body.name, body.password, body.profile_pic_url);
-            }, {
-                body: t.Object({
-                    name: t.String(), password: t.String(), profile_pic_url: t.Optional(t.String()),
-                })
-            })
-
-            .get("/:id", ({ params }) => {
-                return db
-                    .collection("users")
-                    .findOne({
-                        _id: new ObjectId(params.id)
-                    });
-            }, {
-                params: t.Object({
-                    id: t.String()
-                })
-            })
-
-            .patch("/:id", async ({ params, body }) => {
-                const query = { _id: new ObjectId(params.id) };
-                const current_user = await db.collection("users").findOne(query);
-                const update = { $set: { ...current_user, ...body } };
-                console.log(current_user);
-                console.log(body);
-                const options = {};
-
-                return db
-                    .collection("users")
-                    .updateOne(query, update, options);
-            }, {
-                params: t.Object({
-                    id: t.String()
-                }), body: t.Object({
-                    name: t.Optional(t.String()),
-                    bio: t.Optional(t.String()),
-                    password: t.Optional(t.String()),
-                    points: t.Optional(t.Integer()),
-                    profile_pic_url: t.Optional(t.String()),
-                    is_moderator: t.Optional(t.Boolean())
-                })
-            })
-
-            .delete("/:id", ({ params }) => {
-                return db
-                    .collection("users")
-                    .deleteOne({
-                        _id: new ObjectId(params.id)
-                    });
-            }, {
-                params: t.Object({
-                    id: t.String()
-                })
-            }))
 
         .group("/posts", (posts) => posts
 
