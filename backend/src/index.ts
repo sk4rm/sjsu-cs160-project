@@ -1,43 +1,12 @@
 import { Elysia, file, t } from "elysia";
 import { openapi } from "@elysiajs/openapi";
 import { staticPlugin } from "@elysiajs/static";
-import { MongoClient, ObjectId, ServerApiVersion } from "mongodb";
+import { ObjectId } from "mongodb";
 import { cors } from "@elysiajs/cors";
+import { database } from "./db";
+import { User } from "./modules/user/service";
 
-if (Bun.env.URI_MONGO === undefined) {
-    throw new Error("Environment variable URI_MONGO not specified.");
-}
-
-// TODO Make into a service.
-async function addUser(name: string, password: string, profile_pic_url?: string) {
-    const userData = {
-        name: name,
-        password: await Bun.password.hash(password),
-        points: 0,
-        is_moderator: false,
-
-        // Only add this field if supplied to eliminate null fields.
-        ...(profile_pic_url && { profile_pic_url: profile_pic_url })
-    };
-
-
-    console.info(`Creating new user: ${name}`);
-
-    const result = await db
-        .collection("users")
-        .insertOne(userData);
-
-    console.info(`Created new user with ID: ${result.insertedId}`)
-
-    return result;
-}
-
-const client = new MongoClient(Bun.env.URI_MONGO, {
-    serverApi: {
-        version: ServerApiVersion.v1, strict: true, deprecationErrors: true
-    }
-});
-const db = client.db("eco-leveling");
+const db = database;
 
 const app = new Elysia()
     .use(staticPlugin())
@@ -57,7 +26,7 @@ const app = new Elysia()
         .group("/users", (users) => users
 
             .post("", ({ body }) => {
-                return addUser(body.name, body.password, body.profile_pic_url);
+                return User.createNew(body.name, body.password, body.profile_pic_url);
             }, {
                 body: t.Object({
                     name: t.String(), password: t.String(), profile_pic_url: t.Optional(t.String()),
@@ -232,7 +201,7 @@ const app = new Elysia()
                     return { error: "User already exists" };
                 }
 
-                const result = await addUser(body.name, body.password, body.profile_pic_url);
+                const result = await User.createNew(body.name, body.password, body.profile_pic_url);
                 const user = await db.collection("users").findOne({ _id: result.insertedId });
                 return { id: user!._id.toString(), name: user!.name, profile_pic_url: user!.profile_pic_url };
             }, {
