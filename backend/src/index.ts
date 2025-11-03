@@ -12,19 +12,26 @@ const db = database;
 const app = new Elysia()
     .use(staticPlugin())
 
-    .use(cors({ origin: "http://localhost:5173", credentials: true }))
+    .use(
+        cors({
+            origin: "http://localhost:5173",
+            credentials: true
+        })
+    )
 
-    .use(openapi({
-        exclude: {
-            paths: ["/public/*"]
-        }
-    }))
+    .use(
+        openapi({
+            exclude: {
+                paths: ["/public/*"]
+            }
+        })
+    )
 
     .get("/favicon.ico", () => file("favicon.ico"))
 
-    .use(user)
-
     .group("/api", (api) => api
+
+        // .use(user)
 
         .group("/posts", (posts) => posts
 
@@ -139,16 +146,21 @@ const app = new Elysia()
 
         .group("/auth", (auth) => auth
             // Register (plain for now)
-            .post("/register", async ({ body, set }) => {
-                const exists = await db.collection("users").findOne({ name: body.name });
+            .post("/register", async ({ body: { name, password, profile_pic_url }, set }) => {
+                const exists = await db.collection("users").findOne({ name: name });
                 if (exists) {
                     set.status = 409;
                     return { error: "User already exists" };
                 }
 
-                const result = await User.createNew(body.name, body.password, body.profile_pic_url);
-                const user = await db.collection("users").findOne({ _id: result.insertedId });
-                return { id: user!._id.toString(), name: user!.name, profile_pic_url: user!.profile_pic_url };
+                const id = await User.createNew(name, password, profile_pic_url);
+                return {
+                    id: id,
+                    name: name,
+
+                    // Only add this field if supplied to eliminate null fields.
+                    ...(profile_pic_url && { profile_pic_url: profile_pic_url })
+                };
             }, {
                 body: t.Object({
                     name: t.String({ minLength: 3 }),

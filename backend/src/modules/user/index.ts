@@ -5,15 +5,12 @@ import { User } from "./service";
 import { database } from "../../db";
 import { UserModel } from "./model";
 
-export const user = new Elysia({ prefix: '/api/users' })
+export const user = new Elysia({ prefix: '/users' })
     .post(
         "",
-        ({ body }) => {
-            return User.createNew(
-                body.name,
-                body.password,
-                body.profile_pic_url
-            );
+        async ({ body: { name, password, profile_pic_url } }) => {
+            const response = await User.createNew(name, password, profile_pic_url);
+            return response;
         },
         {
             body: UserModel.registrationBody
@@ -21,15 +18,11 @@ export const user = new Elysia({ prefix: '/api/users' })
     )
     .get(
         "/:id",
-        ({ params }) => {
-            return database
-                .collection("users")
-                .findOne({
-                    _id: new ObjectId(params.id)
-                });
+        ({ params: { id } }) => {
+            return User.find(id);
         },
         {
-            params: UserModel.id
+            params: UserModel.id,
         }
     )
     .patch(
