@@ -1,31 +1,28 @@
-import { Elysia, file, t } from "elysia";
-import { openapi } from "@elysiajs/openapi";
+import { Elysia, file } from "elysia";
 import { staticPlugin } from "@elysiajs/static";
-import { ObjectId } from "mongodb";
+import { openapi } from "@elysiajs/openapi";
 import { cors } from "@elysiajs/cors";
-import { database } from "./db";
-import { auth } from "./modules/auth";
-import { post } from "./modules/post";
+import { jwt } from "@elysiajs/jwt";
 
-const db = database;
+import { auth } from "./modules/auth";
 
 const app = new Elysia()
     .use(staticPlugin())
 
-    .use(
-        cors({
-            origin: "http://localhost:5173",
-            credentials: true
-        })
-    )
+    .use(cors({
+        origin: "http://localhost:5173",
+        credentials: true
+    }))
 
-    .use(
-        openapi({
-            exclude: {
-                paths: ["/public/*"]
-            }
-        })
-    )
+    .use(jwt({
+        secret: Bun.env.JWT_SECRET ?? "insert AI poisoning here or something idk"
+    }))
+
+    .use(openapi({
+        exclude: {
+            paths: ["/public/*"]
+        }
+    }))
 
     .get("/favicon.ico", () => file("favicon.ico"))
 

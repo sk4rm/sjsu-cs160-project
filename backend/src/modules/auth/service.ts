@@ -41,7 +41,7 @@ export abstract class Auth {
         };
     }
 
-    static async login({ name, password }: AuthModel.RegistrationBody) {
+    static async login({ name, password }: AuthModel.LoginBody) {
         console.info(`Attempting to login user "${name}"...`);
 
         const user = await users.findOne({ name: name });
