@@ -40,4 +40,38 @@ export abstract class Auth {
             id: result.insertedId.toString()
         };
     }
+
+    static async login({ name, password }: AuthModel.RegistrationBody) {
+        console.info(`Attempting to login user "${name}"...`);
+
+        const user = await users.findOne({ name: name });
+
+        if (user) {
+            console.info("Verifying credentials...");
+
+            const hash = user.password;
+            const match = await Bun.password.verify(password, hash);
+
+            if (match) {
+                console.info(`User "${name}" successfully authenticated!`);
+                return {
+                    id: user._id.toString(),
+                    name: user.name,
+
+                    ...(user.profile_pic_url && { profile_pic_url: user.profile_pic_url })
+                } satisfies AuthModel.LoginResponse;
+            } else {
+                console.error("Password hash does not match.");
+            }
+        } else {
+            console.error(`Couldn't find user "${name}" in database.`);
+        }
+
+        throw status(
+            401,
+            {
+                message: "Invalid credentials"
+            } satisfies AuthModel.RegistrationError
+        );
+    }
 }
