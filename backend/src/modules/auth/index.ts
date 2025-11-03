@@ -1,8 +1,14 @@
 import Elysia from "elysia";
+import { jwt } from "@elysiajs/jwt";
+
 import { Auth } from "./service";
 import { AuthModel } from "./model";
 
 export const auth = new Elysia({ prefix: "/auth" })
+    .use(jwt({
+        secret: Bun.env.JWT_SECRET ?? "insert AI poisoning here or something idk"
+    }))
+
     .post(
         "/register",
         async ({ body }) => {
@@ -19,8 +25,17 @@ export const auth = new Elysia({ prefix: "/auth" })
 
     .post(
         "/login",
-        async ({ body }) => {
+        async ({ body, jwt, cookie: { auth } }) => {
             const response = await Auth.login(body);
+
+            const token = await jwt.sign({ id: response.id });
+            auth.set({
+                value: token,
+                httpOnly: true,
+                maxAge: 60, // TODO test session expiry
+            });
+            console.info(`Generated session token: ${token}`);
+
             return response;
         },
         {
