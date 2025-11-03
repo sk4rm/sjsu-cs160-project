@@ -4,8 +4,7 @@ import { staticPlugin } from "@elysiajs/static";
 import { ObjectId } from "mongodb";
 import { cors } from "@elysiajs/cors";
 import { database } from "./db";
-import { User } from "./modules/user/service";
-import { user } from "./modules/user";
+import { auth } from "./modules/auth";
 
 const db = database;
 
@@ -31,7 +30,7 @@ const app = new Elysia()
 
     .group("/api", (api) => api
 
-        // .use(user)
+        .use(auth)
 
         .group("/posts", (posts) => posts
 
@@ -144,44 +143,7 @@ const app = new Elysia()
                 })
             }))
 
-        .group("/auth", (auth) => auth
-            // Register (plain for now)
-            .post("/register", async ({ body: { name, password, profile_pic_url }, set }) => {
-                const exists = await db.collection("users").findOne({ name: name });
-                if (exists) {
-                    set.status = 409;
-                    return { error: "User already exists" };
-                }
-
-                const id = await User.createNew(name, password, profile_pic_url);
-                return {
-                    id: id,
-                    name: name,
-
-                    // Only add this field if supplied to eliminate null fields.
-                    ...(profile_pic_url && { profile_pic_url: profile_pic_url })
-                };
-            }, {
-                body: t.Object({
-                    name: t.String({ minLength: 3 }),
-                    password: t.String({ minLength: 3 }),
-                    profile_pic_url: t.Optional(t.String())
-                })
-            })
-
-            // Login (plain compare)
-            .post("/login", async ({ body, set }) => {
-                const user = await db.collection("users").findOne({ name: body.name });
-                if (!user || !Bun.password.verifySync(body.password, user.password)) {
-                    set.status = 401;
-                    return { error: "Invalid credentials" };
-                }
-                return { id: user._id.toString(), name: user.name, profile_pic_url: user.profile_pic_url };
-            }, {
-                body: t.Object({
-                    name: t.String(), password: t.String()
-                })
-            })))
+    )
 
     .listen(3000);
 
