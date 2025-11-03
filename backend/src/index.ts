@@ -5,6 +5,7 @@ import { ObjectId } from "mongodb";
 import { cors } from "@elysiajs/cors";
 import { database } from "./db";
 import { auth } from "./modules/auth";
+import { post } from "./modules/post";
 
 const db = database;
 
@@ -29,120 +30,7 @@ const app = new Elysia()
     .get("/favicon.ico", () => file("favicon.ico"))
 
     .group("/api", (api) => api
-
         .use(auth)
-
-        .group("/posts", (posts) => posts
-
-            .post("", ({ body }) => {
-                return db
-                    .collection("posts")
-                    .insertOne({
-                        author_id: new ObjectId(body.author_id), image_url: body.image_url, body: body.body
-                    });
-            }, {
-                body: t.Object({
-                    author_id: t.String(), image_url: t.Optional(t.String()), body: t.String()
-                })
-            })
-
-            .get("/:id", ({ params }) => {
-                return db
-                    .collection("posts")
-                    .findOne({
-                        _id: new ObjectId(params.id)
-                    });
-            }, {
-                params: t.Object({
-                    id: t.String()
-                })
-            })
-
-            .patch("/:id", async ({ params, body }) => {
-                const query = { _id: new ObjectId(params.id) };
-                const current_post = await db.collection("posts").findOne(query);
-                const update = { $set: { ...current_post, ...body } };
-                const options = {};
-
-                return db
-                    .collection("posts")
-                    .updateOne(query, update, options);
-            }, {
-                params: t.Object({
-                    id: t.String()
-                }), body: t.Object({
-                    image_url: t.Optional(t.String()), body: t.Optional(t.String())
-                })
-            })
-
-            .delete("/:id", ({ params }) => {
-                return db
-                    .collection("posts")
-                    .deleteOne({
-                        _id: new ObjectId(params.id)
-                    });
-            }, {
-                params: t.Object({
-                    id: t.String()
-                })
-            }))
-
-        .group("/comments", (comments) => comments
-
-            .post("", ({ body }) => {
-                // TODO Validate post_id and author_id; disable commenting on non-existent posts by non-existent users.
-                return db
-                    .collection("comments")
-                    .insertOne({
-                        post_id: new ObjectId(body.post_id),
-                        author_id: new ObjectId(body.author_id),
-                        body: body.body,
-                        likes: 0
-                    });
-            }, {
-                body: t.Object({
-                    post_id: t.String(), author_id: t.String(), body: t.String()
-                })
-            })
-
-            .get("/:id", ({ params }) => {
-                return db
-                    .collection("comments")
-                    .findOne({
-                        _id: new ObjectId(params.id)
-                    });
-            }, {
-                params: t.Object({
-                    id: t.String()
-                })
-            })
-
-            .patch("/:id", async ({ params, body }) => {
-                const query = { _id: new ObjectId(params.id) };
-                const update = { $set: { body: body.body } };
-                const options = {};
-
-                return db
-                    .collection("comments")
-                    .updateOne(query, update, options);
-            }, {
-                params: t.Object({
-                    id: t.String()
-                }), body: t.Object({
-                    body: t.Optional(t.String()),
-                })
-            })
-
-            .delete("/:id", ({ params }) => {
-                return db
-                    .collection("comments")
-                    .deleteOne({ _id: new ObjectId(params.id) });
-            }, {
-                params: t.Object({
-                    id: t.String()
-                })
-            }))
-
     )
 
     .listen(3000);
