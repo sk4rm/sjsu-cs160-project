@@ -174,4 +174,4 @@ const app = new Elysia()
     .listen(3000);
 
 console.info(`🍂 Eco-Leveling backend is running at http://${app.server?.hostname}:${app.server?.port}`);
-console.info(`⚙️ Please refer to API documentation at http://${app.server?.hostname}:${app.server?.port}/openapi`);
+console.info(`🔌 Please refer to API documentation at http://${app.server?.hostname}:${app.server?.port}/openapi`);
