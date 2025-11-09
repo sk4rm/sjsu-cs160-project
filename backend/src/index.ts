@@ -4,6 +4,7 @@ import { openapi } from "@elysiajs/openapi";
 import { cors } from "@elysiajs/cors";
 
 import { auth } from "./modules/auth";
+import { post } from "./modules/posts";   // added
 
 const app = new Elysia()
     .use(staticPlugin())
@@ -21,8 +22,10 @@ const app = new Elysia()
 
     .get("/favicon.ico", () => file("favicon.ico"))
 
+
     .group("/api", (api) => api
         .use(auth)
+        .use(post)                              // added this
     )
 
     .listen(3000);
