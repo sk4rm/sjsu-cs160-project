@@ -4,6 +4,10 @@ import Profile from "./pages/Profile";
 import Leaderboard from "./pages/Leaderboard";
 import About from "./pages/About";
 import Settings from "./pages/Settings";
+import Upload from "./pages/Upload";
+
+// inside <Routes> …
+<Route path="/upload" element={<Upload />} />
 
 function SidebarLink({ to, icon, label }: { to: string; icon: string; label: string }) {
   return (

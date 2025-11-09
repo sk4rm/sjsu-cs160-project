@@ -63,3 +63,18 @@ export default function PostCard({ post }: { post: Post }) {
     </article>
   );
 }
+import { NavLink } from "react-router-dom";
+
+// …inside your nav list
+<NavLink
+  to="/upload"
+  className={({ isActive }) =>
+    `flex items-center gap-2 rounded px-3 py-2 ${
+      isActive ? "bg-green-100 font-medium text-green-700" : "hover:bg-neutral-100"
+    }`
+  }
+>
+  {/* simple “plus” icon */}
+  <span className="inline-block w-5 text-center">＋</span>
+  <span>Upload</span>
+</NavLink>
