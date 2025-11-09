@@ -6,8 +6,6 @@ import About from "./pages/About";
 import Settings from "./pages/Settings";
 import Upload from "./pages/Upload";
 
-// inside <Routes> …
-<Route path="/upload" element={<Upload />} />
 
 function SidebarLink({ to, icon, label }: { to: string; icon: string; label: string }) {
   return (
@@ -47,6 +45,7 @@ export default function App() {
           <div className="my-6 h-px bg-neutral-200" />
 
           <nav className="flex flex-col gap-1">
+            <SidebarLink to="/upload" icon="⬆️" label="Upload" />
             <SidebarLink to="/profile" icon="👤" label="Profile" />
             <SidebarLink to="/settings" icon="⚙️" label="Settings" />
           </nav>
@@ -60,6 +59,7 @@ export default function App() {
             <Route path="/about" element={<About />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/upload" element={<Upload />} />
           </Routes>
         </main>
       </div>
