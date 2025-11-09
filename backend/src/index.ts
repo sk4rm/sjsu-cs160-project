@@ -4,7 +4,8 @@ import { openapi } from "@elysiajs/openapi";
 import { cors } from "@elysiajs/cors";
 
 import { auth } from "./modules/auth";
-import { post } from "./modules/posts";   // added
+import { post } from "./modules/posts";   //
+import { comments } from "./modules/comment"; //
 
 const app = new Elysia()
     .use(staticPlugin())
@@ -25,7 +26,8 @@ const app = new Elysia()
 
     .group("/api", (api) => api
         .use(auth)
-        .use(post)                              // added this
+        .use(post)
+        .use(comments)
     )
 
     .listen(3000);

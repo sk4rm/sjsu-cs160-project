@@ -1,80 +1,93 @@
-import React from "react";
+import { useState } from "react";
+import CommentsPanel from "./CommentsPanel";
 
-export type Post = {
-  id: number;
-  author: { name: string; initial: string };
-  time: string;
-  title: string;
-  excerpt: string;
-  likes: number;
-  comments: number;
-  shares: number;
-  image: string;
+/** Post as it comes from your API/Mongo */
+export type ApiPost = {
+  _id: string;
+  author_id: string;
+  body: string;
+  image_url?: string;
+  likes?: number;
+  comments?: number; // optional server-side count
+  shares?: number;
+  createdAt?: string;
 };
 
-export default function PostCard({ post }: { post: Post }) {
+export default function PostCard({
+  post,
+  meId = "665555555555555555555555", // fallback; swap for real logged-in user id
+}: {
+  post: ApiPost;
+  meId?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [commentCount, setCommentCount] = useState<number>(
+    post.comments ?? 0
+  );
+
+  const likeCount = post.likes ?? 0;
+  const shareCount = post.shares ?? 0;
+
   return (
     <article className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
       {/* Image */}
       <div className="aspect-[16/10] w-full overflow-hidden bg-neutral-100">
-        <img
-          src={post.image}
-          alt={post.title}
-          className="h-full w-full object-cover"
-        />
+        {post.image_url ? (
+          <img src={post.image_url} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-neutral-400">
+            No image
+          </div>
+        )}
       </div>
 
       {/* Content */}
       <div className="p-5">
-        {/* Author Info */}
-        <div className="mb-4 flex items-center gap-3 text-sm text-neutral-600">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-200 text-neutral-700">
-            <span className="text-xs font-medium">
-              {post.author.initial}
-            </span>
+        {/* Author + time */}
+        <div className="mb-3 text-sm text-neutral-600">
+          <div className="font-medium text-neutral-900">
+            User {post.author_id.slice(-4)}
           </div>
-          <div className="leading-tight">
-            <div className="text-neutral-900">{post.author.name}</div>
-            <div className="text-xs">{post.time}</div>
-          </div>
+          {post.createdAt && (
+            <div className="text-xs">
+              {new Date(post.createdAt).toLocaleString()}
+            </div>
+          )}
         </div>
 
-        {/* Title + Excerpt */}
-        <h3 className="mb-2 text-lg font-semibold tracking-tight text-neutral-900">
-          {post.title}
-        </h3>
-        <p className="mb-4 text-sm text-neutral-600">{post.excerpt}</p>
+        {/* Body */}
+        <p className="mb-4 text-neutral-800">{post.body}</p>
 
         {/* Actions */}
         <div className="mt-2 flex items-center justify-between text-neutral-700">
           <div className="flex items-center gap-5 text-sm">
-            <span>❤️ {post.likes}</span>
-            <span>💬 {post.comments}</span>
-            <span>🔗 {post.shares}</span>
+            <span>❤️ {likeCount}</span>
+            <button
+              type="button"
+              onClick={() => setOpen((o) => !o)}
+              className="hover:underline"
+              aria-expanded={open}
+            >
+              💬 {commentCount}
+            </button>
+            <span>🔗 {shareCount}</span>
           </div>
-          <button
-            className="rounded-lg p-2 hover:bg-neutral-100"
-            aria-label="Save"
-          >
+          <button className="rounded-lg p-2 hover:bg-neutral-100" aria-label="Save">
             📌
           </button>
         </div>
+
+        {/* Comments panel (all logic lives inside CommentsPanel) */}
+        {open && (
+          <div className="mt-4">
+            <CommentsPanel
+              postId={post._id}
+              meId={meId}
+              onCountChange={setCommentCount}
+            />
+          </div>
+        )}
       </div>
     </article>
   );
 }
-import { NavLink } from "react-router-dom";
-
-// …inside your nav list
-<NavLink
-  to="/upload"
-  className={({ isActive }) =>
-    `flex items-center gap-2 rounded px-3 py-2 ${
-      isActive ? "bg-green-100 font-medium text-green-700" : "hover:bg-neutral-100"
-    }`
-  }
->
-  {/* simple “plus” icon */}
-  <span className="inline-block w-5 text-center">＋</span>
-  <span>Upload</span>
-</NavLink>
