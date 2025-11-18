@@ -4,8 +4,17 @@ import Profile from "./pages/Profile";
 import Leaderboard from "./pages/Leaderboard";
 import About from "./pages/About";
 import Settings from "./pages/Settings";
+import { House, Trophy, Info, Leaf, User, Settings2 } from "lucide-react";
 
-function SidebarLink({ to, icon, label }: { to: string; icon: string; label: string }) {
+function SidebarLink({
+  to,
+  icon,
+  label,
+}: {
+  to: string;
+  icon: string;
+  label: string;
+}) {
   return (
     <NavLink
       to={to}
@@ -29,22 +38,42 @@ export default function App() {
         <aside className="sticky top-0 h-[100dvh] border-r border-neutral-200 bg-white p-4">
           <div className="mb-6 flex items-center gap-3 px-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-neutral-900 text-white">
-              🌿
+              {<Leaf className="h-5 w-5" />}
             </div>
             <span className="text-lg font-semibold">Eco-Leveling</span>
           </div>
 
           <nav className="flex flex-col gap-1">
-            <SidebarLink to="/" icon="🏠" label="Home" />
-            <SidebarLink to="/leaderboard" icon="🏆" label="Leaderboard" />
-            <SidebarLink to="/about" icon="ℹ️" label="About" />
+            <SidebarLink
+              to="/"
+              icon={<House className="h-5 w-5" />}
+              label="Home"
+            />
+            <SidebarLink
+              to="/profile"
+              icon={<User className="h-5 w-5" />}
+              label="Profile"
+            />
+            <SidebarLink
+              to="/leaderboard"
+              icon={<Trophy className="h-5 w-5" />}
+              label="Leaderboard"
+            />
           </nav>
 
           <div className="my-6 h-px bg-neutral-200" />
 
           <nav className="flex flex-col gap-1">
-            <SidebarLink to="/profile" icon="👤" label="Profile" />
-            <SidebarLink to="/settings" icon="⚙️" label="Settings" />
+            <SidebarLink
+              to="/settings"
+              icon={<Settings2 className="h-5 w-5" />}
+              label="Settings"
+            />
+            <SidebarLink
+              to="/about"
+              icon={<Info className="h-5 w-5" />}
+              label="About"
+            />
           </nav>
         </aside>
 
