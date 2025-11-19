@@ -1,4 +1,4 @@
-import Elysia from "elysia";
+import Elysia, { status } from "elysia";
 import { jwt } from "@elysiajs/jwt";
 
 import { Auth } from "./service";
@@ -21,13 +21,15 @@ export const auth = new Elysia({ prefix: "/auth" })
                 200: AuthModel.RegistrationResponse,
                 409: AuthModel.RegistrationError
             }
-        })
+        }
+    )
 
     .post(
         "/login",
         async ({ body, jwt, cookie: { auth } }) => {
             const response = await Auth.login(body);
 
+            // TODO service-ify
             const token = await jwt.sign({ id: response.id });
             auth.set({
                 value: token,
@@ -44,4 +46,24 @@ export const auth = new Elysia({ prefix: "/auth" })
                 200: AuthModel.LoginResponse,
                 401: AuthModel.LoginError
             }
-        });
+        }
+    )
+
+    .get(
+        "/test",
+        async ({ jwt, cookie: { auth } }) => {
+            console.info(`Verifying session token ${auth}...`);
+
+            const user_info = await jwt.verify(auth.value);
+            if (user_info === false) {
+                console.error(`Verification failed.`);
+                return status(403, 'Forbidden');
+            } else {
+                console.info(`Verification success.`);
+                console.info(`User ID: ${user_info.id}`);
+            }
+        },
+        {
+            cookie: AuthModel.AuthCookie
+        }
+    );

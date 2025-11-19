@@ -7,9 +7,9 @@ const users = database.collection("users");
 export abstract class Auth {
     /**
      * Registers a new user with the specified name, password, and an optional profile picture URL.
-     * @returns User ID if registration was successful.
+     * @returns An object with User ID if registration was successful.
      */
-    static async register({ name, password, profile_pic_url }: AuthModel.RegistrationBody) {
+    static async register({ name, password, profile_pic_url }: AuthModel.RegistrationBody): Promise<AuthModel.RegistrationResponse> {
         const isNameTaken = await users.findOne({ name: name });
         if (isNameTaken) {
             throw status(
@@ -38,10 +38,14 @@ export abstract class Auth {
 
         return {
             id: result.insertedId.toString()
-        };
+        } satisfies AuthModel.RegistrationResponse;
     }
 
-    static async login({ name, password }: AuthModel.LoginBody) {
+    /**
+     * Authenticates using username-password credentials.
+     * @returns An object with the user's ID, name, and other information.
+     */
+    static async login({ name, password }: AuthModel.LoginBody): Promise<AuthModel.LoginResponse> {
         console.info(`Attempting to login user "${name}"...`);
 
         const user = await users.findOne({ name: name });

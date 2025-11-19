@@ -30,10 +30,21 @@ export namespace AuthModel {
         message: t.String()
     });
 
+    export const AuthCookie = t.Cookie(
+        {
+            auth: t.String()
+        },
+        {
+            // secure: true, // HTTPS
+            httpOnly: true
+        }
+    );
+
     export type RegistrationBody = typeof RegistrationBody.static;
     export type RegistrationError = typeof RegistrationError.static;
     export type RegistrationResponse = typeof RegistrationResponse.static;
     export type LoginBody = typeof LoginBody.static;
     export type LoginResponse = typeof LoginResponse.static;
     export type LoginError = typeof LoginError.static;
+    export type AuthCookie = typeof AuthCookie.static;
 }

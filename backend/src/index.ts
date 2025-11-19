@@ -19,7 +19,6 @@ const app = new Elysia()
         }
     }))
 
-
     .get("/favicon.ico", () => file("favicon.ico"))
 
     .group("/api", (api) => api
