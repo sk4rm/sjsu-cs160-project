@@ -5,9 +5,12 @@ import { cors } from "@elysiajs/cors";
 
 import { auth } from "./modules/auth";
 import { post } from "./modules/posts";   //
-import { comments } from "./modules/comment"; //
+import { commentsModule } from "./modules/comment";
+import { currentUser } from "./plugins/currentUser";
 
 const app = new Elysia()
+    .use(currentUser)
+
     .use(staticPlugin())
 
     .use(cors({
@@ -27,7 +30,8 @@ const app = new Elysia()
     .group("/api", (api) => api
         .use(auth)
         .use(post)
-        .use(comments)
+        .use(commentsModule)
+
     )
 
     .listen(3000);

@@ -3,20 +3,20 @@ import { useEffect, useState } from "react";
 type Comment = {
   _id: string;
   post_id: string;
-  author_id: string;
+  author_name: string | null; // null => Anonymous
   body: string;
   likes?: number;
   createdAt?: string;
 };
 
-type Props = {
+export default function CommentsPanel({
+  postId,
+  onCountChange,
+}: {
   postId: string;
-  meId: string; // commenter id
-  onCountChange?: (n: number) => void; // tell PostCard the current count
-};
-
-export default function CommentsPanel({ postId, meId, onCountChange }: Props) {
-  const [comments, setComments] = useState<Comment[]>([]);
+  onCountChange?: (n: number) => void;
+}) {
+  const [comments, setComments] = useState<Comment[] | null>(null);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [posting, setPosting] = useState(false);
@@ -26,7 +26,7 @@ export default function CommentsPanel({ postId, meId, onCountChange }: Props) {
     setLoading(true);
     setError(null);
     try {
-      // <-- use the route we added in backend
+      // Keep your existing endpoint unless you changed it
       const res = await fetch(`/api/comments/by-post/${postId}`, {
         credentials: "include",
       });
@@ -34,7 +34,7 @@ export default function CommentsPanel({ postId, meId, onCountChange }: Props) {
       const data = (await res.json()) as Comment[];
       const list = Array.isArray(data) ? data : [];
       setComments(list);
-      onCountChange?.(list.length); // update 💬 badge on the card
+      onCountChange?.(list.length);
     } catch (e: any) {
       setError(e?.message || "Failed to load comments.");
     } finally {
@@ -49,37 +49,44 @@ export default function CommentsPanel({ postId, meId, onCountChange }: Props) {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!text.trim()) return;
+    const body = text.trim();
+    if (!body) return;
 
     setPosting(true);
     setError(null);
+
+    // Optimistic UI
+    const optimistic: Comment = {
+      _id: `tmp-${crypto.randomUUID()}`,
+      post_id: postId,
+      author_name: null, // will render as "Anonymous" until reload
+      body,
+      createdAt: new Date().toISOString(),
+    };
+    setComments((prev) => (prev ? [...prev, optimistic] : [optimistic]));
+    onCountChange?.((comments?.length ?? 0) + 1);
+    setText("");
+
     try {
+      // No author_id sent; backend resolves from cookie or sets anonymous
       const res = await fetch(`/api/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          post_id: postId,
-          author_id: meId,     // now uses the prop from PostCard/auth
-          body: text.trim(),
-        }),
+        body: JSON.stringify({ post_id: postId, body }),
       });
       if (!res.ok) throw new Error(await res.text());
 
-      setText("");
-
-      // Option A: optimistic append (faster UI)...
-      // const created = await res.json(); // if your API returns the inserted comment
-      // setComments(prev => {
-      //   const next = [...prev, created];
-      //   onCountChange?.(next.length);
-      //   return next;
-      // });
-
-      // Option B: simple reload (keeps code tiny)
+      // Refresh to replace optimistic item with real one
       await load();
     } catch (e: any) {
       setError(e?.message || "Failed to post comment.");
+      // revert optimistic add
+      setComments((prev) =>
+        prev ? prev.filter((c) => c._id !== optimistic._id) : prev
+      );
+      onCountChange?.((comments?.length ?? 1) - 1);
+      setText(body);
     } finally {
       setPosting(false);
     }
@@ -93,16 +100,16 @@ export default function CommentsPanel({ postId, meId, onCountChange }: Props) {
       {error ? <div className="text-sm text-red-600">{error}</div> : null}
 
       <div className="space-y-2">
-        {comments.map((c) => (
+        {comments?.map((c) => (
           <div key={c._id} className="rounded-md bg-neutral-50 p-2 text-sm">
             <div className="mb-1 text-xs text-neutral-500">
-              User {c.author_id.slice(-4)} •{" "}
-              {c.createdAt ? new Date(c.createdAt).toLocaleString() : ""}
+              {c.author_name ?? "Anonymous"}
+              {c.createdAt ? ` • ${new Date(c.createdAt).toLocaleString()}` : ""}
             </div>
             <div>{c.body}</div>
           </div>
         ))}
-        {comments.length === 0 && !loading ? (
+        {!loading && comments && comments.length === 0 && !error ? (
           <div className="text-sm text-neutral-500">No comments yet.</div>
         ) : null}
       </div>

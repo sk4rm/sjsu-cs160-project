@@ -3,56 +3,142 @@ import { ObjectId } from "mongodb";
 import { database } from "../../db";
 
 const db = database;
-const hex24 = "^[a-fA-F0-9]{24}$";
-const oid = (s: string) => new ObjectId(s);
+const comments = db.collection("comments");
+const audits = db.collection("audits"); // optional audit logging
 
-export const comments = new Elysia({ prefix: "/comments" })
+export const commentsModule = new Elysia({ prefix: "/comments" })
 
-  // List comments for a post (oldest → newest)
-  .get("/by-post/:postId", async ({ params }) => {
-    return db
-      .collection("comments")
-      .find({ post_id: oid(params.postId) })
-      .sort({ createdAt: 1 })
-      .toArray();
-  }, {
-    params: t.Object({ postId: t.String({ pattern: hex24 }) })
-  })
+  // GET comments for a post (oldest → newest)
+  .get(
+    "/by-post/:postId",
+    async ({ params }) => {
+      const list = await comments
+        .find({ post_id: new ObjectId(params.postId) })
+        .sort({ createdAt: 1 })
+        .toArray();
 
-  // Create a comment
-  .post("", async ({ body }) => {
-    const doc = {
-      post_id: oid(body.post_id),
-      author_id: oid(body.author_id),
-      body: body.body,
-      likes: 0,
-      createdAt: new Date()
-    };
-    const res = await db.collection("comments").insertOne(doc);
-    return { id: res.insertedId };
-  }, {
-    body: t.Object({
-      post_id: t.String({ pattern: hex24 }),
-      author_id: t.String({ pattern: hex24 }),
-      body: t.String()
-    })
-  })
+      return list.map((c) => ({
+        ...c,
+        _id: c._id.toString(),
+        post_id: c.post_id.toString(),
+      }));
+    },
+    {
+      params: t.Object({
+        postId: t.String({ pattern: "^[a-fA-F0-9]{24}$" }),
+      }),
+    }
+  )
 
-  // (Optional endpoints you already had)
-  .get("/:id", async ({ params }) =>
-    db.collection("comments").findOne({ _id: oid(params.id) })
-  , { params: t.Object({ id: t.String({ pattern: hex24 }) }) })
+  // CREATE a comment — backend derives author_name from cookie (or Anonymous)
+  .post(
+    "",
+    async ({ body, user, request }) => {
+      const doc = {
+        post_id: new ObjectId(body.post_id),
+        author_name: user?.name ?? null, // null → Anonymous
+        anonymous: !user,
+        body: body.body,
+        likes: 0,
+        createdAt: new Date(),
+      };
 
-  .patch("/:id", async ({ params, body }) =>
-    db.collection("comments").updateOne(
-      { _id: oid(params.id) },
-      { $set: { body: body.body } }
-    )
-  , {
-    params: t.Object({ id: t.String({ pattern: hex24 }) }),
-    body: t.Object({ body: t.String() })
-  })
+      const res = await comments.insertOne(doc);
 
-  .delete("/:id", async ({ params }) =>
-    db.collection("comments").deleteOne({ _id: oid(params.id) })
-  , { params: t.Object({ id: t.String({ pattern: hex24 }) }) });
+      // OPTIONAL AUDIT
+      try {
+        await audits.insertOne({
+          action: "comment.create",
+          actor_user_id: user?._id ?? null,
+          actor_name: user?.name ?? null,
+          post_target: body.post_id,
+          target: { collection: "comments", id: res.insertedId },
+          ip:
+            request.headers.get("x-forwarded-for") ??
+            request.headers.get("cf-connecting-ip") ??
+            null,
+          ua: request.headers.get("user-agent"),
+          at: new Date(),
+        });
+      } catch {}
+
+      return { id: res.insertedId.toString() };
+    },
+    {
+      body: t.Object({
+        post_id: t.String({ pattern: "^[a-fA-F0-9]{24}$" }),
+        body: t.String(),
+      }),
+    }
+  )
+
+  // GET one comment
+  .get(
+    "/:id",
+    async ({ params }) => {
+      const c = await comments.findOne({
+        _id: new ObjectId(params.id),
+      });
+      if (!c) return new Response("Not found", { status: 404 });
+
+      return { ...c, _id: c._id.toString(), post_id: c.post_id.toString() };
+    },
+    { params: t.Object({ id: t.String({ pattern: "^[a-fA-F0-9]{24}$" }) }) }
+  )
+
+  // UPDATE comment body
+  .patch(
+    "/:id",
+    async ({ params, body, user }) => {
+      const _id = new ObjectId(params.id);
+      const update = { $set: {} as any };
+
+      if (body.body !== undefined) update.$set.body = body.body;
+
+      const res = await comments.updateOne({ _id }, update);
+
+      // optional audit
+      try {
+        await audits.insertOne({
+          action: "comment.update",
+          actor_user_id: user?._id ?? null,
+          actor_name: user?.name ?? null,
+          target: { collection: "comments", id: _id },
+          changed: Object.keys(update.$set),
+          at: new Date(),
+        });
+      } catch {}
+
+      return {
+        matched: res.matchedCount,
+        modified: res.modifiedCount,
+      };
+    },
+    {
+      params: t.Object({ id: t.String({ pattern: "^[a-fA-F0-9]{24}$" }) }),
+      body: t.Object({ body: t.Optional(t.String()) }),
+    }
+  )
+
+  // DELETE comment
+  .delete(
+    "/:id",
+    async ({ params, user }) => {
+      const _id = new ObjectId(params.id);
+
+      const res = await comments.deleteOne({ _id });
+
+      try {
+        await audits.insertOne({
+          action: "comment.delete",
+          actor_user_id: user?._id ?? null,
+          actor_name: user?.name ?? null,
+          target: { collection: "comments", id: _id },
+          at: new Date(),
+        });
+      } catch {}
+
+      return { deleted: res.deletedCount };
+    },
+    { params: t.Object({ id: t.String({ pattern: "^[a-fA-F0-9]{24}$" }) }) }
+  );
