@@ -3,142 +3,67 @@ import { ObjectId } from "mongodb";
 import { database } from "../../db";
 
 const db = database;
-const comments = db.collection("comments");
-const audits = db.collection("audits"); // optional audit logging
+const commentsCol = db.collection("comments");
+const postsCol = db.collection("posts");
 
-export const commentsModule = new Elysia({ prefix: "/comments" })
+const hex24 = "^[a-fA-F0-9]{24}$";
+const oid = (s: string) => new ObjectId(s);
 
-  // GET comments for a post (oldest → newest)
-  .get(
-    "/by-post/:postId",
-    async ({ params }) => {
-      const list = await comments
-        .find({ post_id: new ObjectId(params.postId) })
-        .sort({ createdAt: 1 })
-        .toArray();
+export const comments = new Elysia({ prefix: "/comments" })
+  .get("/by-post/:postId", async ({ params }) => {
+    const list = await commentsCol
+      .find({ post_id: oid(params.postId) })
+      .sort({ createdAt: 1 })
+      .toArray();
+    return list.map(c => ({ ...c, _id: c._id.toString() }));
+  }, { params: t.Object({ postId: t.String({ pattern: hex24 }) }) })
 
-      return list.map((c) => ({
-        ...c,
-        _id: c._id.toString(),
-        post_id: c.post_id.toString(),
-      }));
-    },
-    {
-      params: t.Object({
-        postId: t.String({ pattern: "^[a-fA-F0-9]{24}$" }),
-      }),
-    }
-  )
+  .post("", async ({ body, cookie }) => {
+    let author_name: string | null = null;
+    let anonymous = true;
 
-  // CREATE a comment — backend derives author_name from cookie (or Anonymous)
-  .post(
-    "",
-    async ({ body, user, request }) => {
-      const doc = {
-        post_id: new ObjectId(body.post_id),
-        author_name: user?.name ?? null, // null → Anonymous
-        anonymous: !user,
-        body: body.body,
-        likes: 0,
-        createdAt: new Date(),
-      };
+    try {
+      const raw = cookie?.auth_user?.value;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.name && typeof parsed.name === "string") {
+          author_name = parsed.name;
+          anonymous = false;
+        }
+      }
+    } catch {}
 
-      const res = await comments.insertOne(doc);
+    const doc = {
+      post_id: oid(body.post_id),
+      author_name,
+      anonymous,
+      body: body.body,
+      likes: 0,
+      createdAt: new Date().toISOString(),
+    };
 
-      // OPTIONAL AUDIT
-      try {
-        await audits.insertOne({
-          action: "comment.create",
-          actor_user_id: user?._id ?? null,
-          actor_name: user?.name ?? null,
-          post_target: body.post_id,
-          target: { collection: "comments", id: res.insertedId },
-          ip:
-            request.headers.get("x-forwarded-for") ??
-            request.headers.get("cf-connecting-ip") ??
-            null,
-          ua: request.headers.get("user-agent"),
-          at: new Date(),
-        });
-      } catch {}
+    const res = await commentsCol.insertOne(doc);
+    await postsCol.updateOne({ _id: oid(body.post_id) }, { $inc: { comments: 1 } });
+    return { id: res.insertedId.toString() };
+  }, { body: t.Object({ post_id: t.String({ pattern: hex24 }), body: t.String() }) })
 
-      return { id: res.insertedId.toString() };
-    },
-    {
-      body: t.Object({
-        post_id: t.String({ pattern: "^[a-fA-F0-9]{24}$" }),
-        body: t.String(),
-      }),
-    }
-  )
+  .get("/:id", async ({ params }) => {
+    const c = await commentsCol.findOne({ _id: oid(params.id) });
+    return c ? { ...c, _id: c._id.toString() } : { notFound: true };
+  }, { params: t.Object({ id: t.String({ pattern: hex24 }) }) })
 
-  // GET one comment
-  .get(
-    "/:id",
-    async ({ params }) => {
-      const c = await comments.findOne({
-        _id: new ObjectId(params.id),
-      });
-      if (!c) return new Response("Not found", { status: 404 });
+  .patch("/:id", async ({ params, body }) => {
+    const res = await commentsCol.updateOne(
+      { _id: oid(params.id) },
+      { $set: { body: body.body } }
+    );
+    return { matched: res.matchedCount, modified: res.modifiedCount };
+  }, {
+    params: t.Object({ id: t.String({ pattern: hex24 }) }),
+    body: t.Object({ body: t.String() })
+  })
 
-      return { ...c, _id: c._id.toString(), post_id: c.post_id.toString() };
-    },
-    { params: t.Object({ id: t.String({ pattern: "^[a-fA-F0-9]{24}$" }) }) }
-  )
-
-  // UPDATE comment body
-  .patch(
-    "/:id",
-    async ({ params, body, user }) => {
-      const _id = new ObjectId(params.id);
-      const update = { $set: {} as any };
-
-      if (body.body !== undefined) update.$set.body = body.body;
-
-      const res = await comments.updateOne({ _id }, update);
-
-      // optional audit
-      try {
-        await audits.insertOne({
-          action: "comment.update",
-          actor_user_id: user?._id ?? null,
-          actor_name: user?.name ?? null,
-          target: { collection: "comments", id: _id },
-          changed: Object.keys(update.$set),
-          at: new Date(),
-        });
-      } catch {}
-
-      return {
-        matched: res.matchedCount,
-        modified: res.modifiedCount,
-      };
-    },
-    {
-      params: t.Object({ id: t.String({ pattern: "^[a-fA-F0-9]{24}$" }) }),
-      body: t.Object({ body: t.Optional(t.String()) }),
-    }
-  )
-
-  // DELETE comment
-  .delete(
-    "/:id",
-    async ({ params, user }) => {
-      const _id = new ObjectId(params.id);
-
-      const res = await comments.deleteOne({ _id });
-
-      try {
-        await audits.insertOne({
-          action: "comment.delete",
-          actor_user_id: user?._id ?? null,
-          actor_name: user?.name ?? null,
-          target: { collection: "comments", id: _id },
-          at: new Date(),
-        });
-      } catch {}
-
-      return { deleted: res.deletedCount };
-    },
-    { params: t.Object({ id: t.String({ pattern: "^[a-fA-F0-9]{24}$" }) }) }
-  );
+  .delete("/:id", async ({ params }) => {
+    const res = await commentsCol.deleteOne({ _id: oid(params.id) });
+    return { deleted: res.deletedCount };
+  }, { params: t.Object({ id: t.String({ pattern: hex24 }) }) });

@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 type Comment = {
   _id: string;
   post_id: string;
-  author_name: string | null; // null => Anonymous
+  author_name: string | null;
+  anonymous: boolean;
   body: string;
   likes?: number;
   createdAt?: string;
@@ -12,11 +13,8 @@ type Comment = {
 export default function CommentsPanel({
   postId,
   onCountChange,
-}: {
-  postId: string;
-  onCountChange?: (n: number) => void;
-}) {
-  const [comments, setComments] = useState<Comment[] | null>(null);
+}: { postId: string; onCountChange?: (n: number) => void }) {
+  const [comments, setComments] = useState<Comment[]>([]);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [posting, setPosting] = useState(false);
@@ -26,10 +24,7 @@ export default function CommentsPanel({
     setLoading(true);
     setError(null);
     try {
-      // Keep your existing endpoint unless you changed it
-      const res = await fetch(`/api/comments/by-post/${postId}`, {
-        credentials: "include",
-      });
+      const res = await fetch(`/api/comments/by-post/${postId}`, { credentials: "include" });
       if (!res.ok) throw new Error(await res.text());
       const data = (await res.json()) as Comment[];
       const list = Array.isArray(data) ? data : [];
@@ -42,51 +37,25 @@ export default function CommentsPanel({
     }
   }
 
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [postId]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [postId]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const body = text.trim();
-    if (!body) return;
-
+    if (!text.trim()) return;
     setPosting(true);
     setError(null);
-
-    // Optimistic UI
-    const optimistic: Comment = {
-      _id: `tmp-${crypto.randomUUID()}`,
-      post_id: postId,
-      author_name: null, // will render as "Anonymous" until reload
-      body,
-      createdAt: new Date().toISOString(),
-    };
-    setComments((prev) => (prev ? [...prev, optimistic] : [optimistic]));
-    onCountChange?.((comments?.length ?? 0) + 1);
-    setText("");
-
     try {
-      // No author_id sent; backend resolves from cookie or sets anonymous
       const res = await fetch(`/api/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ post_id: postId, body }),
+        body: JSON.stringify({ post_id: postId, body: text.trim() }),
       });
       if (!res.ok) throw new Error(await res.text());
-
-      // Refresh to replace optimistic item with real one
+      setText("");
       await load();
     } catch (e: any) {
       setError(e?.message || "Failed to post comment.");
-      // revert optimistic add
-      setComments((prev) =>
-        prev ? prev.filter((c) => c._id !== optimistic._id) : prev
-      );
-      onCountChange?.((comments?.length ?? 1) - 1);
-      setText(body);
     } finally {
       setPosting(false);
     }
@@ -100,16 +69,18 @@ export default function CommentsPanel({
       {error ? <div className="text-sm text-red-600">{error}</div> : null}
 
       <div className="space-y-2">
-        {comments?.map((c) => (
-          <div key={c._id} className="rounded-md bg-neutral-50 p-2 text-sm">
-            <div className="mb-1 text-xs text-neutral-500">
-              {c.author_name ?? "Anonymous"}
-              {c.createdAt ? ` • ${new Date(c.createdAt).toLocaleString()}` : ""}
+        {comments.map((c) => {
+          const name = c.anonymous || !c.author_name ? "Anonymous" : c.author_name;
+          return (
+            <div key={c._id} className="rounded-md bg-neutral-50 p-2 text-sm">
+              <div className="mb-1 text-xs text-neutral-500">
+                {name} • {c.createdAt ? new Date(c.createdAt).toLocaleString() : ""}
+              </div>
+              <div>{c.body}</div>
             </div>
-            <div>{c.body}</div>
-          </div>
-        ))}
-        {!loading && comments && comments.length === 0 && !error ? (
+          );
+        })}
+        {comments.length === 0 && !loading ? (
           <div className="text-sm text-neutral-500">No comments yet.</div>
         ) : null}
       </div>

@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import PostCard from "../components/PostCard";
 
-type ApiPost = {
+export type ApiPost = {
   _id: string;
-  author_id: string;
+  author_name: string | null;
+  anonymous: boolean;
   body: string;
-  image_url?: string;
+  image_url?: string | null;
   likes?: number;
   comments?: number;
   shares?: number;
@@ -20,7 +21,7 @@ export default function Home() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/posts/", { credentials: "include" }); // note the slash
+        const res = await fetch("/api/posts/", { credentials: "include" });
         if (!res.ok) throw new Error(`GET /api/posts failed: ${res.status}`);
         const data: ApiPost[] = await res.json();
         setPosts(data);
