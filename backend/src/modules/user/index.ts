@@ -5,7 +5,11 @@ import { User } from "./service";
 import { database } from "../../db";
 import { UserModel } from "./model";
 
+import { leaderboard } from "./leaderboard";  // <-- added
+
 export const user = new Elysia({ prefix: '/users' })
+
+    // CREATE USER
     .post(
         "",
         async ({ body: { name, password, profile_pic_url } }) => {
@@ -16,6 +20,8 @@ export const user = new Elysia({ prefix: '/users' })
             body: UserModel.registrationBody
         }
     )
+
+    // GET USER BY ID
     .get(
         "/:id",
         ({ params: { id } }) => {
@@ -25,6 +31,8 @@ export const user = new Elysia({ prefix: '/users' })
             params: UserModel.id,
         }
     )
+
+    // UPDATE USER
     .patch(
         "/:id",
         async ({ params, body }) => {
@@ -45,6 +53,8 @@ export const user = new Elysia({ prefix: '/users' })
             body: UserModel.patchBody
         }
     )
+
+    // DELETE USER
     .delete(
         "/:id",
         ({ params }) => {
@@ -57,4 +67,7 @@ export const user = new Elysia({ prefix: '/users' })
         {
             params: UserModel.id,
         }
-    );
+    )
+
+    // REGISTER LEADERBOARD ROUTE
+    .use(leaderboard);   // <-- added

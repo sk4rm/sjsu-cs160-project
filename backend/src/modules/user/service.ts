@@ -47,4 +47,60 @@ export abstract class User {
 
         return result;
     }
+
+    /**
+     * Leaderboard ranked by total likes (desc), then posts count (desc).
+     * Matches real post schema from huu-tinh-v2:
+     * - posts.author_id (ObjectId)
+     * - posts.likes (number)
+     */
+    static async getLeaderboard(limit: number = 50) {
+        const usersCollection = database.collection("users");
+
+        const pipeline = [
+            {
+                $lookup: {
+                    from: "posts",
+                    localField: "_id",
+                    foreignField: "author_id",
+                    as: "postsData"
+                }
+            },
+            {
+                $addFields: {
+                    posts: { $size: "$postsData" },
+                    likes: { $sum: "$postsData.likes" }
+                }
+            },
+            {
+                $sort: { likes: -1, posts: -1 }
+            },
+            { $limit: limit },
+            {
+                $project: {
+                    name: 1,
+                    profile_pic_url: 1,
+                    posts: 1,
+                    likes: 1
+                }
+            }
+        ];
+
+        const results = await usersCollection.aggregate(pipeline).toArray();
+
+        // ✅ SAFE mapping so missing names don't crash leaderboard
+        return results.map((u) => {
+            const safeName =
+                (u.name && typeof u.name === "string") ? u.name : "Unnamed User";
+
+            return {
+                id: u._id.toString(),
+                name: safeName,
+                handle: "@" + safeName.toLowerCase().replace(/\s+/g, ""),
+                avatarUrl: u.profile_pic_url ?? null,
+                posts: u.posts ?? 0,
+                likes: u.likes ?? 0
+            };
+        });
+    }
 }
