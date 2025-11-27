@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../Context/AuthContext";
-import { useNavigate } from "react-router-dom";       
+import { useNavigate } from "react-router-dom";
 import LoginForm from "../components/LoginForm";
-import { LogOut, Pencil } from 'lucide-react';    
+import { LogOut, Pencil } from "lucide-react";
 
 /** ---------- Types ---------- */
 type User = {
@@ -28,6 +28,11 @@ type Post = {
 
 const API_BASE = "http://localhost:3000/api";
 
+/** ---------- School options (autocomplete) ---------- */
+const SCHOOL_OPTIONS = [
+  "San Jose State University"
+];
+
 /** ---------- Utilities ---------- */
 function formatJoined(dateISO?: string) {
   if (!dateISO) return "";
@@ -39,13 +44,12 @@ function formatJoined(dateISO?: string) {
 /** ---------- Page ---------- */
 export default function Profile() {
   const { user: authUser, logout } = useAuth();
-  const nav = useNavigate();                                         // ✅ added
+  const nav = useNavigate();
   const [user, setUser] = useState<User | null>(authUser ?? null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [editBio, setEditBio] = useState("");
 
   // Fetch fresh user + posts
   useEffect(() => {
@@ -74,8 +78,16 @@ export default function Profile() {
   const initials = useMemo(() => {
     if (!user?.name) return "?";
     const parts = user.name.trim().split(/\s+/);
-    return parts.slice(0, 2).map((p) => p[0]?.toUpperCase()).join("");
+    return parts
+      .slice(0, 2)
+      .map((p) => p[0]?.toUpperCase())
+      .join("");
   }, [user?.name]);
+
+  // Fallback so something sensible shows even if handle is missing
+  const displayName = user?.name ?? "";
+  const displayHandle =
+    user?.handle || (user?.name ? `@${user.name}` : undefined);
 
   if (loading) {
     return (
@@ -90,7 +102,7 @@ export default function Profile() {
     );
   }
 
-  // ✅ show LoginForm when logged out
+  // show LoginForm when logged out
   if (!user) {
     return (
       <div className="p-6">
@@ -131,8 +143,10 @@ export default function Profile() {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="truncate text-xl font-semibold">{user.name}</div>
-                {user.handle && <div className="truncate text-neutral-500">{user.handle}</div>}
+                <div className="truncate text-xl font-semibold">{displayName}</div>
+                {displayHandle && (
+                  <div className="truncate text-neutral-500">{displayHandle}</div>
+                )}
                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-neutral-500">
                   {user.school && (
                     <span className="inline-flex items-center gap-1">
@@ -152,23 +166,22 @@ export default function Profile() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => {
-                    setEditBio(user.bio || "");
                     setEditOpen(true);
                   }}
-                  className="rounded-xl border px-3 py-2 text-sm hover:bg-neutral-50"
+                  className="inline-flex items-center gap-1 rounded-xl border px-3 py-2 text-sm hover:bg-neutral-50"
                 >
-                  {<Pencil className="h-4 w-4" />}
-                  Edit Profile
+                  <Pencil className="h-4 w-4" />
+                  <span>Edit Profile</span>
                 </button>
                 <button
                   onClick={async () => {
-                    await logout();                              // ✅ clear auth
-                    nav("/profile", { replace: true });          // ✅ show LoginForm
+                    await logout();
+                    nav("/profile", { replace: true });
                   }}
-                  className="rounded-xl border px-3 py-2 text-sm hover:bg-neutral-50"
+                  className="inline-flex items-center gap-1 rounded-xl border px-3 py-2 text-sm hover:bg-neutral-50"
                 >
-                  {<LogOut className="h-4 w-4" />}
-                  Sign Out
+                  <LogOut className="h-4 w-4" />
+                  <span>Sign Out</span>
                 </button>
               </div>
             </div>
@@ -201,14 +214,22 @@ export default function Profile() {
           <EmptyPosts />
         ) : (
           posts.map((p) => (
-            <div key={p.id} className="overflow-hidden rounded-2xl border bg-white shadow-sm">
-              <img src={p.imageUrl} alt={p.alt || ""} className="h-56 w-full object-cover" loading="lazy" />
+            <div
+              key={p.id}
+              className="overflow-hidden rounded-2xl border bg-white shadow-sm"
+            >
+              <img
+                src={p.imageUrl}
+                alt={p.alt || ""}
+                className="h-56 w-full object-cover"
+                loading="lazy"
+              />
             </div>
           ))
         )}
       </div>
 
-      {/* Edit Profile Dialog (unchanged) */}
+      {/* Edit Profile Dialog */}
       {editOpen && user && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
@@ -220,7 +241,9 @@ export default function Profile() {
           >
             <div className="mb-4">
               <h3 className="text-lg font-semibold">Edit Profile</h3>
-              <p className="text-sm text-neutral-500">Update your profile details.</p>
+              <p className="text-sm text-neutral-500">
+                Update your profile details and photo.
+              </p>
             </div>
 
             <EditForm
@@ -228,20 +251,36 @@ export default function Profile() {
                 name: user.name || "",
                 handle: user.handle?.replace(/^@/, "") || "",
                 school: user.school || "",
-                location: (user as any).location || "",
                 bio: user.bio || "",
+                avatarUrl: user.avatarUrl || "",
               }}
               saving={saving}
               onCancel={() => setEditOpen(false)}
               onSave={async (values) => {
                 const payload: Record<string, string> = {};
-                if (values.name !== (user.name || "")) payload.name = values.name.trim();
+
+                if (values.name !== (user.name || "")) {
+                  payload.name = values.name.trim();
+                }
+
                 const normalizedHandle = values.handle.trim();
                 const currentHandle = (user.handle || "").replace(/^@/, "");
-                if (normalizedHandle !== currentHandle) payload.username = normalizedHandle;
-                if (values.school !== (user.school || "")) payload.school = values.school.trim();
-                if (values.location !== ((user as any).location || "")) payload.location = values.location.trim();
-                if (values.bio !== (user.bio || "")) payload.bio = values.bio;
+                if (normalizedHandle && normalizedHandle !== currentHandle) {
+                  payload.username = normalizedHandle;
+                }
+
+                if (values.school !== (user.school || "")) {
+                  payload.school = values.school.trim();
+                }
+
+                if (values.bio !== (user.bio || "")) {
+                  payload.bio = values.bio;
+                }
+
+                if ((values.avatarUrl || "") !== (user.avatarUrl || "")) {
+                  // backend gets a string (URL or data URL)
+                  payload.avatarUrl = values.avatarUrl;
+                }
 
                 if (Object.keys(payload).length === 0) {
                   setEditOpen(false);
@@ -257,7 +296,8 @@ export default function Profile() {
                     body: JSON.stringify(payload),
                   });
                   if (!res.ok) {
-                    if (res.status === 409) throw new Error("That username is already taken.");
+                    if (res.status === 409)
+                      throw new Error("That username is already taken.");
                     const err = await res.json().catch(() => ({}));
                     throw new Error(err?.message || "Failed to update profile");
                   }
@@ -266,10 +306,16 @@ export default function Profile() {
                       ? {
                           ...u,
                           name: payload.name ?? u.name,
-                          handle: payload.username !== undefined ? `@${payload.username}` : u.handle,
+                          handle:
+                            payload.username !== undefined
+                              ? `@${payload.username}`
+                              : u.handle ?? (u.name ? `@${u.name}` : undefined),
                           school: payload.school ?? u.school,
                           bio: payload.bio ?? u.bio,
-                          ...(payload.location !== undefined ? { location: payload.location } : {}),
+                          avatarUrl:
+                            payload.avatarUrl !== undefined
+                              ? payload.avatarUrl
+                              : u.avatarUrl,
                         }
                       : u
                   );
@@ -308,24 +354,43 @@ function EmptyPosts() {
   );
 }
 
-
 function EditForm({
   initial,
   saving,
   onCancel,
   onSave,
 }: {
-  initial: { name: string; handle: string; school: string; location: string; bio: string };
+  initial: {
+    name: string;
+    handle: string;
+    school: string;
+    bio: string;
+    avatarUrl: string;
+  };
   saving: boolean;
   onCancel: () => void;
-  onSave: (values: { name: string; handle: string; school: string; location: string; bio: string }) => void;
+  onSave: (values: {
+    name: string;
+    handle: string;
+    school: string;
+    bio: string;
+    avatarUrl: string;
+  }) => void;
 }) {
   const [name, setName] = useState(initial.name);
   const [handle, setHandle] = useState(initial.handle);
   const [school, setSchool] = useState(initial.school);
-  const [location, setLocation] = useState(initial.location);
   const [bio, setBio] = useState(initial.bio);
+  const [avatarPreview, setAvatarPreview] = useState(initial.avatarUrl || "");
+  const [schoolFocused, setSchoolFocused] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  const filteredSchools =
+    school.length < 2
+      ? []
+      : SCHOOL_OPTIONS.filter((s) =>
+          s.toLowerCase().includes(school.toLowerCase())
+        ).slice(0, 6);
 
   function validate() {
     // username: 3–20, letters/numbers/underscore only
@@ -336,6 +401,19 @@ function EditForm({
       return "Name is required.";
     }
     return null;
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        // data URL string – safe to send as JSON
+        setAvatarPreview(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
   }
 
   return (
@@ -349,7 +427,13 @@ function EditForm({
           return;
         }
         setErr(null);
-        onSave({ name: name.trim(), handle: handle.trim(), school: school.trim(), location: location.trim(), bio });
+        onSave({
+          name: name.trim(),
+          handle: handle.trim(),
+          school: school.trim(),
+          bio,
+          avatarUrl: avatarPreview,
+        });
       }}
     >
       {err && (
@@ -357,6 +441,37 @@ function EditForm({
           {err}
         </div>
       )}
+
+      {/* Avatar upload */}
+      <div className="flex items-center gap-4">
+        <div className="h-16 w-16 overflow-hidden rounded-full bg-neutral-100 ring-2 ring-neutral-200">
+          {avatarPreview ? (
+            <img
+              src={avatarPreview}
+              alt="Avatar preview"
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-xs text-neutral-400">
+              No photo
+            </div>
+          )}
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            Profile picture
+          </label>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            className="text-sm"
+          />
+          <p className="mt-1 text-xs text-neutral-500">
+            Upload a square image for best results.
+          </p>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
@@ -372,7 +487,9 @@ function EditForm({
         <div>
           <label className="mb-1 block text-sm font-medium">Username</label>
           <div className="flex items-center">
-            <span className="rounded-l-xl border border-r-0 bg-neutral-50 px-3 py-2 text-neutral-500">@</span>
+            <span className="rounded-l-xl border border-r-0 bg-neutral-50 px-3 py-2 text-neutral-500">
+              @
+            </span>
             <input
               className="w-full rounded-r-xl border px-3 py-2"
               value={handle}
@@ -387,27 +504,41 @@ function EditForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-sm font-medium">School</label>
-          <input
-            className="w-full rounded-xl border px-3 py-2"
-            value={school}
-            onChange={(e) => setSchool(e.target.value)}
-            placeholder="University of Washington"
-            maxLength={80}
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Location</label>
-          <input
-            className="w-full rounded-xl border px-3 py-2"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            placeholder="Seattle, WA"
-            maxLength={80}
-          />
-        </div>
+      {/* School with autocomplete */}
+      <div className="relative">
+        <label className="mb-1 block text-sm font-medium">School</label>
+        <input
+          className="w-full rounded-xl border px-3 py-2"
+          value={school}
+          onChange={(e) => setSchool(e.target.value)}
+          onFocus={() => setSchoolFocused(true)}
+          onBlur={() => {
+            // delay so clicks on suggestions still register
+            setTimeout(() => setSchoolFocused(false), 120);
+          }}
+          placeholder="Your School"
+          maxLength={80}
+        />
+
+        {schoolFocused && filteredSchools.length > 0 && (
+          <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border bg-white text-sm shadow-lg">
+            {filteredSchools.map((option) => (
+              <li key={option}>
+                <button
+                  type="button"
+                  className="flex w-full px-3 py-2 text-left hover:bg-neutral-100"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    setSchool(option);
+                    setSchoolFocused(false);
+                  }}
+                >
+                  {option}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div>
@@ -419,7 +550,9 @@ function EditForm({
           maxLength={300}
           placeholder="Tell people a bit about you…"
         />
-        <div className="mt-1 text-right text-xs text-neutral-500">{bio.length}/300</div>
+        <div className="mt-1 text-right text-xs text-neutral-500">
+          {bio.length}/300
+        </div>
       </div>
 
       <div className="mt-2 flex justify-end gap-2">
@@ -442,4 +575,3 @@ function EditForm({
     </form>
   );
 }
-
