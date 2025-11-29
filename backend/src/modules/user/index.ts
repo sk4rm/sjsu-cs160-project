@@ -25,7 +25,7 @@ export const user = new Elysia({ prefix: '/users' })
     .get(
         "/:id",
         ({ params: { id } }) => {
-            return User.find(id);
+            return User.find(id); 
         },
         {
             params: UserModel.id,

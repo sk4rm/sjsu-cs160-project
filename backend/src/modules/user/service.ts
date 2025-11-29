@@ -4,103 +4,75 @@ import { database } from "../../db";
 const users = database.collection("users");
 
 export abstract class User {
-    /**
-     * Registers a new user with the specified name, password, and an optional
-     * profile picture URL.
-     * @returns User ID if registration was successful
-     */
-    static async createNew(name: string, password: string, profile_pic_url?: string) {
-        const userData = {
-            name: name,
-            password: await Bun.password.hash(password),
-            points: 0,
-            is_moderator: false,
+  static async createNew(name: string, password: string, profile_pic_url?: string) {
+    const userData = {
+      name,
+      password: await Bun.password.hash(password),
+      points: 0,
+      is_moderator: false,
+      ...(profile_pic_url && { profile_pic_url }),
+    };
 
-            // Only add this field if supplied to eliminate null fields.
-            ...(profile_pic_url && { profile_pic_url: profile_pic_url })
-        };
+    const result = await users.insertOne(userData);
+    return result.insertedId.toString();
+  }
 
-        console.info(`Creating new user ${name}...`);
+  static async find(id: string) {
+    return users.findOne({ _id: new ObjectId(id) });
+  }
 
-        const result = await users.insertOne(userData);
+  /**
+   * ✅ Leaderboard ranked by total likes from posts,
+   * then by number of posts. Posts use author_name now.
+   */
+  static async getLeaderboard(limit: number = 50) {
+    const postsCollection = database.collection("posts");
 
-        console.info(`Created a new user with ID: ${result.insertedId}`);
-
-        return result.insertedId.toString();
-    }
-
-    /**
-     * Get user data from their unique ID.
-     * @returns User data JSON if found, null otherwise.
-     */
-    static async find(id: string) {
-        const query = {
-            _id: new ObjectId(id)
-        };
-
-        const result = await users.findOne(query);
-
-        if (result == null) {
-            console.error(`Couldn't find a user with ID: ${id}`);
-            return null;
+    const pipeline = [
+      {
+        $group: {
+          _id: "$author_name",            // can be null (anonymous)
+          likes: { $sum: "$likes" },
+          posts: { $sum: 1 }
         }
+      },
+      { $sort: { likes: -1, posts: -1 } },
+      { $limit: limit },
 
-        return result;
-    }
+      // try matching to a user document by name
+      {
+        $lookup: {
+          from: "users",
+          localField: "_id",
+          foreignField: "name",
+          as: "userDoc"
+        }
+      },
+      { $unwind: { path: "$userDoc", preserveNullAndEmptyArrays: true } },
 
-    /**
-     * Leaderboard ranked by total likes (desc), then posts count (desc).
-     * Matches real post schema from huu-tinh-v2:
-     * - posts.author_id (ObjectId)
-     * - posts.likes (number)
-     */
-    static async getLeaderboard(limit: number = 50) {
-        const usersCollection = database.collection("users");
+      {
+        $project: {
+          name: "$_id",
+          likes: 1,
+          posts: 1,
+          profile_pic_url: "$userDoc.profile_pic_url",
+          userId: "$userDoc._id"
+        }
+      }
+    ];
 
-        const pipeline = [
-            {
-                $lookup: {
-                    from: "posts",
-                    localField: "_id",
-                    foreignField: "author_id",
-                    as: "postsData"
-                }
-            },
-            {
-                $addFields: {
-                    posts: { $size: "$postsData" },
-                    likes: { $sum: "$postsData.likes" }
-                }
-            },
-            {
-                $sort: { likes: -1, posts: -1 }
-            },
-            { $limit: limit },
-            {
-                $project: {
-                    name: 1,
-                    profile_pic_url: 1,
-                    posts: 1,
-                    likes: 1
-                }
-            }
-        ];
+    const results = await postsCollection.aggregate(pipeline).toArray();
 
-        const results = await usersCollection.aggregate(pipeline).toArray();
-
-        // ✅ SAFE mapping so missing names don't crash leaderboard
-        return results.map((u) => {
-            const safeName =
-                (u.name && typeof u.name === "string") ? u.name : "Unnamed User";
-
-            return {
-                id: u._id.toString(),
-                name: safeName,
-                handle: "@" + safeName.toLowerCase().replace(/\s+/g, ""),
-                avatarUrl: u.profile_pic_url ?? null,
-                posts: u.posts ?? 0,
-                likes: u.likes ?? 0
-            };
-        });
-    }
+    return results.map((u) => {
+      const name = u.name ?? "Anonymous";
+      return {
+        id: u.userId ? u.userId.toString() : `anon-${name}`,
+        name,
+        handle: "@" + name.toLowerCase().replace(/\s+/g, ""),
+        avatarUrl: u.profile_pic_url ?? null,
+        posts: u.posts ?? 0,
+        likes: u.likes ?? 0
+      };
+    });
+  }
 }
