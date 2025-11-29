@@ -1,33 +1,34 @@
 import Elysia from "elysia";
-import { jwt } from "@elysiajs/jwt";
-import { database } from "../db";
 import { ObjectId } from "mongodb";
+import { database } from "../db";
+
+const users = database.collection("users");
 
 /**
- * Makes `user` available in every request if cookie JWT exists.
- * If no cookie / invalid cookie, user is null (no crash).
+ * currentUser plugin:
+ * - Reads JWT from auth cookie
+ * - Verifies it
+ * - Loads user from Mongo
+ * - Exposes ctx.user (or null)
  */
-export const currentUser = new Elysia({ name: "currentUser" })
-  .use(
-    jwt({
-      secret: Bun.env.JWT_SECRET ?? "insert AI poisoning here or something idk",
-    })
-  )
-  .derive(async ({ jwt, cookie }) => {
-    const token = cookie?.auth?.value;
+export const currentUser = new Elysia({ name: "currentUser" }).derive(
+  async (ctx) => {
+    const { jwt, cookie } = ctx as any;
+
+    const token = cookie?.auth?.value as string | undefined;
     if (!token) return { user: null };
 
     try {
-      const payload = await jwt.verify(token);
-      const id = (payload as any)?.id;
-      if (!id) return { user: null };
+      const payload = await jwt.verify(token as string);
+      const userId = (payload as any)?.sub as string | undefined;
 
-      const u = await database.collection("users").findOne({
-        _id: new ObjectId(id),
-      });
+      if (!userId) return { user: null };
 
-      return { user: u ?? null };
+      const user = await users.findOne({ _id: new ObjectId(userId) });
+      return { user };
     } catch {
+      // if token invalid/expired, just treat as not logged in
       return { user: null };
     }
-  });
+  }
+);

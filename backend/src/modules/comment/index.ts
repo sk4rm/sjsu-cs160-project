@@ -40,7 +40,9 @@ export const commentsModule = new Elysia({ prefix: "/comments" })
   // -------------------------
   .post(
     "",
-    async ({ body, user, request }) => {
+    async (ctx) => {
+      const { body, user, request } = ctx as any;
+
       const doc: any = {
         post_id: oid(body.post_id),
         author_name: user?.name ?? null,
@@ -112,7 +114,9 @@ export const commentsModule = new Elysia({ prefix: "/comments" })
   // -------------------------
   .patch(
     "/:id",
-    async ({ params, body, user }) => {
+    async (ctx) => {
+      const { params, body, user } = ctx as any;
+
       const _id = oid(params.id);
       const update: { $set: any } = { $set: {} };
 
@@ -146,7 +150,9 @@ export const commentsModule = new Elysia({ prefix: "/comments" })
   // -------------------------
   .delete(
     "/:id",
-    async ({ params, user }) => {
+    async (ctx) => {
+      const { params, user } = ctx as any;
+
       const _id = oid(params.id);
       const res = await comments.deleteOne({ _id });
 

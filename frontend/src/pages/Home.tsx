@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import PostCard, { ApiPost } from "../components/PostCard";
+import PostCard, { type ApiPost } from "../components/PostCard";
 
 export default function Home() {
   const [posts, setPosts] = useState<ApiPost[]>([]);

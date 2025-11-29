@@ -22,7 +22,9 @@ export const post = new Elysia({ prefix: "/posts" })
   // CREATE
   .post(
     "",
-    async ({ body, user, request }) => {
+    async (ctx) => {
+      const { body, user, request } = ctx as any;
+
       const doc: any = {
         author_name: user?.name ?? null,
         anonymous: !user,

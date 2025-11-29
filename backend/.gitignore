@@ -42,3 +42,7 @@ package-lock.json
 **/*.bun
 
 .env
+
+# Ignore compiled JS from TypeScript
+src/**/*.js
+src/**/*.js.map

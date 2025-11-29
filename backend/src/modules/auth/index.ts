@@ -11,11 +11,13 @@ export const auth = new Elysia({ prefix: "/auth" })
     })
   )
 
+  // -----------------------------
+  // REGISTER
+  // -----------------------------
   .post(
     "/register",
     async ({ body }) => {
-      const response = await Auth.register(body);
-      return response;
+      return await Auth.register(body);
     },
     {
       body: AuthModel.RegistrationBody,
@@ -26,12 +28,15 @@ export const auth = new Elysia({ prefix: "/auth" })
     }
   )
 
+  // -----------------------------
+  // LOGIN
+  // -----------------------------
   .post(
     "/login",
     async ({ body, jwt, cookie: { auth } }) => {
       const response = await Auth.login(body);
 
-      const token = await jwt.sign({ id: response.id });
+      const token = await jwt.sign({ sub: response.id });
       auth.set({
         value: token,
         httpOnly: true,
@@ -49,8 +54,12 @@ export const auth = new Elysia({ prefix: "/auth" })
     }
   )
 
-  // ✅ who am I?
-  .get("/me", ({ user }) => {
+  // -----------------------------
+  // ME (current logged-in user)
+  // -----------------------------
+  .get("/me", (ctx) => {
+    const { user } = ctx as any; // ← fixes "Property 'user' does not exist"
+
     if (!user) {
       throw status(401, { message: "Not logged in" });
     }
