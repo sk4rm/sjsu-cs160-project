@@ -1,9 +1,12 @@
-import React from "react";
+import { useState } from "react";
+import CommentsPanel from "./CommentsPanel";
 
+/** Post as it comes from your API/Mongo */
 export type ApiPost = {
   _id: string;
   author_name?: string | null;
   anonymous?: boolean;
+  author_id?: string;
   body: string;
   image_url?: string | null;
   likes?: number;
@@ -12,16 +15,28 @@ export type ApiPost = {
   createdAt?: string | Date;
 };
 
-export default function PostCard({ post }: { post: ApiPost }) {
+export default function PostCard({
+  post,
+  meId,
+}: {
+  post: ApiPost;
+  meId?: string; // optional; can be passed from auth/user context later
+}) {
+  const [open, setOpen] = useState(false);
+  const [commentCount, setCommentCount] = useState<number>(
+    post.comments ?? 0
+  );
+
   const likeCount = post.likes ?? 0;
-  const commentCount = post.comments ?? 0;
   const shareCount = post.shares ?? 0;
 
-  const authorLabel = post.anonymous
+  // Prefer anonymous logic / author_name, but fall back to author_id or default label
+  const baseAuthorLabel = post.anonymous
     ? "Anonymous"
-    : post.author_name ?? "Unnamed User";
+    : post.author_name ??
+      (post.author_id ? `User ${post.author_id.slice(-4)}` : "Unnamed User");
 
-  const authorInitial = authorLabel[0]?.toUpperCase() ?? "U";
+  const authorInitial = baseAuthorLabel[0]?.toUpperCase() ?? "U";
 
   const created =
     post.createdAt ? new Date(post.createdAt).toLocaleString() : "";
@@ -52,7 +67,7 @@ export default function PostCard({ post }: { post: ApiPost }) {
           </div>
 
           <div className="leading-tight">
-            <div className="text-neutral-900">{authorLabel}</div>
+            <div className="text-neutral-900">{baseAuthorLabel}</div>
             {created && <div className="text-xs">{created}</div>}
           </div>
         </div>
@@ -64,7 +79,16 @@ export default function PostCard({ post }: { post: ApiPost }) {
         <div className="mt-2 flex items-center justify-between text-neutral-700">
           <div className="flex items-center gap-5 text-sm">
             <span>❤️ {likeCount}</span>
-            <span>💬 {commentCount}</span>
+
+            <button
+              type="button"
+              onClick={() => setOpen((o) => !o)}
+              className="hover:underline"
+              aria-expanded={open}
+            >
+              💬 {commentCount}
+            </button>
+
             <span>🔗 {shareCount}</span>
           </div>
 
@@ -75,6 +99,17 @@ export default function PostCard({ post }: { post: ApiPost }) {
             📌
           </button>
         </div>
+
+        {/* Comments panel (all logic lives inside CommentsPanel) */}
+        {open && (
+          <div className="mt-4">
+            <CommentsPanel
+              postId={post._id}
+              meId={meId}
+              onCountChange={setCommentCount}
+            />
+          </div>
+        )}
       </div>
     </article>
   );

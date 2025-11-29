@@ -33,13 +33,12 @@ app.group("/api", (api) => api.use(leaderboard)); // /api/leaderboard
 
 // --------------------
 // 🔒 PROTECTED + OPTIONAL-USER ROUTES
-// (currentUser makes `user` available but doesn't block if not logged in)
 // --------------------
 app.group("/api", (api) =>
   api
-    .use(auth)          // /api/auth/*
-    .use(user)          // /api/users/*
-    .use(post)          // /api/posts/*
+    .use(auth)           // /api/auth/*
+    .use(user)           // /api/users/*
+    .use(post)           // /api/posts/*
     .use(commentsModule) // /api/comments/*
 );
 

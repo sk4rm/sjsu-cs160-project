@@ -1,16 +1,40 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+function isHex24(s: string) {
+  return /^[a-fA-F0-9]{24}$/.test(s);
+}
 
 export default function Upload() {
+  const [authorId, setAuthorId] = useState("");
   const [body, setBody] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdId, setCreatedId] = useState<string | null>(null);
 
+  // Try to pre-fill author from /api/auth/me (if logged in)
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/me", { credentials: "include" });
+        if (!res.ok) return;
+        const me = await res.json();
+        if (me?._id && isHex24(me._id)) setAuthorId(me._id);
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, []);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setCreatedId(null);
+
+    if (authorId && !isHex24(authorId)) {
+      setError("author_id must be a 24-hex MongoDB ObjectId string.");
+      return;
+    }
 
     if (!body.trim()) {
       setError("Post text is required.");
@@ -24,6 +48,7 @@ export default function Upload() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
+          author_id: authorId || undefined,
           body: body.trim(),
           image_url: imageUrl.trim() || undefined,
         }),
@@ -34,8 +59,8 @@ export default function Upload() {
         throw new Error(t || `Request failed (${res.status})`);
       }
 
-      const json = await res.json(); // { id: ... }
-      const id = json?.id || json?.insertedId || null;
+      const json = await res.json(); // { id } or { insertedId }
+      const id = json?.insertedId || json?.id || null;
 
       setCreatedId(id);
       setBody("");
@@ -53,6 +78,23 @@ export default function Upload() {
 
       <div className="mx-auto max-w-2xl rounded-xl border border-neutral-200 bg-white p-6 shadow-sm">
         <form onSubmit={onSubmit} className="space-y-5">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">
+              Author ID (MongoDB ObjectId)
+            </label>
+            <input
+              value={authorId}
+              onChange={(e) => setAuthorId(e.target.value)}
+              placeholder="(auto-filled if logged in)"
+              className="w-full rounded-lg border border-neutral-300 px-3 py-2 outline-none focus:border-neutral-500"
+            />
+            {!authorId || isHex24(authorId) ? null : (
+              <p className="mt-1 text-sm text-red-600">
+                Must be a 24-hex ObjectId.
+              </p>
+            )}
+          </div>
+
           <div>
             <label className="mb-1 block text-sm font-medium text-neutral-700">
               Image URL (optional)
@@ -98,7 +140,7 @@ export default function Upload() {
 
           {createdId && (
             <div className="rounded-lg border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-800">
-              Post created! ID: <code>{createdId}</code>. Go Home to see it.
+              Post created! ID: <code>{createdId}</code>. It will appear on Home.
             </div>
           )}
 
@@ -110,7 +152,6 @@ export default function Upload() {
             >
               {submitting ? "Creating…" : "Create Post"}
             </button>
-
             <button
               type="button"
               onClick={() => {

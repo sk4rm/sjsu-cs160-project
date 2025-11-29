@@ -4,7 +4,8 @@ import Profile from "./pages/Profile";
 import Leaderboard from "./pages/Leaderboard";
 import About from "./pages/About";
 import Settings from "./pages/Settings";
-import Moderator from "./pages/Moderator"; // 🆕 new page
+import Moderator from "./pages/Moderator"; // 🆕 moderator page
+import Upload from "./pages/Upload"; // 🆕 upload page
 import {
   House,
   Trophy,
@@ -12,7 +13,8 @@ import {
   Leaf,
   User,
   Settings2,
-  ShieldCheck, // 🆕 icon
+  ShieldCheck,
+  Upload as UploadIcon, // icon for Upload
 } from "lucide-react";
 import { useAuth } from "./Context/AuthContext"; // 🆕 auth hook
 
@@ -22,7 +24,7 @@ function SidebarLink({
   label,
 }: {
   to: string;
-  icon: React.ReactNode; // 🔁 was string
+  icon: React.ReactNode;
   label: string;
 }) {
   return (
@@ -41,7 +43,7 @@ function SidebarLink({
 }
 
 export default function App() {
-  const { user } = useAuth(); // 🆕 get current user
+  const { user } = useAuth();
 
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900">
@@ -76,7 +78,7 @@ export default function App() {
 
           <div className="my-6 h-px bg-neutral-200" />
 
-          {/* Settings / About */}
+          {/* Secondary nav (settings, about, upload) */}
           <nav className="flex flex-col gap-1">
             <SidebarLink
               to="/settings"
@@ -87,6 +89,11 @@ export default function App() {
               to="/about"
               icon={<Info className="h-5 w-5" />}
               label="About"
+            />
+            <SidebarLink
+              to="/upload"
+              icon={<UploadIcon className="h-5 w-5" />}
+              label="Upload"
             />
           </nav>
 
@@ -113,6 +120,7 @@ export default function App() {
             <Route path="/about" element={<About />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/upload" element={<Upload />} />
             {/* 🆕 protected route (the page itself can also re-check isModerator) */}
             <Route path="/moderator" element={<Moderator />} />
           </Routes>

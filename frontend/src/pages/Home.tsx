@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import PostCard from "../components/PostCard";
-import type { ApiPost } from "../components/PostCard";
+import PostCard, { ApiPost } from "../components/PostCard";
 
 export default function Home() {
   const [posts, setPosts] = useState<ApiPost[]>([]);
@@ -14,6 +13,7 @@ export default function Home() {
           credentials: "include",
         });
         if (!res.ok) throw new Error(`GET /api/posts failed: ${res.status}`);
+
         const data: ApiPost[] = await res.json();
         setPosts(data);
       } catch (e: any) {
