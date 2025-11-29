@@ -1,7 +1,7 @@
 import React from "react";
 
 type Leader = {
-  id: number;
+  id: string;
   name: string;
   handle: string;
   avatarUrl?: string | null;
@@ -9,41 +9,6 @@ type Leader = {
   posts: number;
   likes: number;
 };
-
-const leaders: Leader[] = [
-  {
-    id: 1,
-    name: "Alex Chen",
-    handle: "@naturealex",
-    avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=256&auto=format&fit=crop",
-    posts: 5,
-    likes: 924,
-  },
-  {
-    id: 2,
-    name: "Emma Wilson",
-    handle: "@emmawilson_photos",
-    initial: "E",
-    posts: 4,
-    likes: 634,
-  },
-  {
-    id: 3,
-    name: "Maya Patel",
-    handle: "@adventuremaya",
-    avatarUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=256&auto=format&fit=crop",
-    posts: 2,
-    likes: 231,
-  },
-  {
-    id: 4,
-    name: "Sophie Turner",
-    handle: "@wildflower_sophie",
-    avatarUrl: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?q=80&w=256&auto=format&fit=crop",
-    posts: 1,
-    likes: 167,
-  },
-];
 
 function RankIcon({ rank }: { rank: number }) {
   const map: Record<number, string> = { 1: "🏆", 2: "🥈", 3: "🥉" };
@@ -115,6 +80,25 @@ function LeaderRow({ rank, user }: { rank: number; user: Leader }) {
 }
 
 export default function Leaderboard() {
+  const [leaders, setLeaders] = React.useState<Leader[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch("http://localhost:3000/api/leaderboard");
+        const data = await res.json();
+        setLeaders(data);
+      } catch (error) {
+        console.error("Failed to load leaderboard:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, []);
+
   return (
     <div className="px-4 pb-12 pt-6 md:px-8">
       {/* header */}
@@ -129,11 +113,15 @@ export default function Leaderboard() {
       </header>
 
       {/* list */}
-      <div className="space-y-4">
-        {leaders.map((u, i) => (
-          <LeaderRow key={u.id} rank={i + 1} user={u} />
-        ))}
-      </div>
+      {loading ? (
+        <p className="text-neutral-500">Loading leaderboard...</p>
+      ) : (
+        <div className="space-y-4">
+          {leaders.map((u, i) => (
+            <LeaderRow key={u.id} rank={i + 1} user={u} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
