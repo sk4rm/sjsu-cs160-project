@@ -1,13 +1,17 @@
 import { useEffect, useState } from "react";
+import { useAuth } from "../Context/AuthContext";
 
 function isHex24(s: string) {
   return /^[a-fA-F0-9]{24}$/.test(s);
 }
 
 export default function Upload() {
+  const { user } = useAuth(); // logged-in user (or null)
+
   const [authorId, setAuthorId] = useState("");
   const [body, setBody] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [anonymous, setAnonymous] = useState(false); // ⬅️ NEW
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdId, setCreatedId] = useState<string | null>(null);
@@ -49,6 +53,10 @@ export default function Upload() {
         credentials: "include",
         body: JSON.stringify({
           author_id: authorId || undefined,
+          // if logged in & NOT anonymous, send your name
+          author_name: user && !anonymous ? user.name : undefined,
+          // if logged in, use checkbox; if not logged in, always anonymous
+          anonymous: user ? anonymous : true,
           body: body.trim(),
           image_url: imageUrl.trim() || undefined,
         }),
@@ -65,6 +73,7 @@ export default function Upload() {
       setCreatedId(id);
       setBody("");
       setImageUrl("");
+      setAnonymous(false);
     } catch (err: any) {
       setError(err?.message || "Failed to create post.");
     } finally {
@@ -132,6 +141,30 @@ export default function Upload() {
             />
           </div>
 
+          {/* Anonymous toggle */}
+          <div className="flex flex-col gap-1 text-sm">
+            {user ? (
+              <label className="flex items-center gap-2 text-neutral-700">
+                <input
+                  type="checkbox"
+                  checked={anonymous}
+                  onChange={(e) => setAnonymous(e.target.checked)}
+                  className="h-4 w-4 rounded border-neutral-300"
+                />
+                <span>Post anonymously</span>
+                <span className="text-xs text-neutral-500">
+                  {anonymous
+                    ? "Your name will not be shown on this post."
+                    : `Posting as ${user.name}.`}
+                </span>
+              </label>
+            ) : (
+              <p className="text-xs text-neutral-500">
+                You’re not logged in, so this post will be anonymous.
+              </p>
+            )}
+          </div>
+
           {error && (
             <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
               {error}
@@ -157,6 +190,7 @@ export default function Upload() {
               onClick={() => {
                 setBody("");
                 setImageUrl("");
+                setAnonymous(false);
               }}
               className="rounded-lg border border-neutral-300 bg-white px-4 py-2"
             >

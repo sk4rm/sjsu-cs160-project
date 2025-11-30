@@ -34,13 +34,19 @@ export const auth = new Elysia({ prefix: "/auth" })
   .post(
     "/login",
     async ({ body, jwt, cookie: { auth } }) => {
+      console.log(`Attempting to login user "${body.name}"...`);
       const response = await Auth.login(body);
+      console.log(`User "${body.name}" successfully authenticated!`);
 
       const token = await jwt.sign({ sub: response.id });
+
       auth.set({
         value: token,
         httpOnly: true,
         maxAge: 60 * 60 * 24, // 1 day
+        path: "/",            // ⬅️ make cookie visible to all routes
+        sameSite: "lax",
+        secure: false,        // keep false for http://localhost
       });
 
       return response;
@@ -58,7 +64,7 @@ export const auth = new Elysia({ prefix: "/auth" })
   // ME (current logged-in user)
   // -----------------------------
   .get("/me", (ctx) => {
-    const { user } = ctx as any; // ← fixes "Property 'user' does not exist"
+    const { user } = ctx as any;
 
     if (!user) {
       throw status(401, { message: "Not logged in" });

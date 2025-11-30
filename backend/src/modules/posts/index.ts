@@ -4,6 +4,7 @@ import { database } from "../../db";
 
 const posts = database.collection("posts");
 const audits = database.collection("audits"); // optional
+const users = database.collection("users");
 
 const hex24 = "^[a-fA-F0-9]{24}$";
 
@@ -15,6 +16,8 @@ const PostBody = t.Object({
   comments: t.Optional(t.Number({ default: 0 })),
   shares: t.Optional(t.Number({ default: 0 })),
   author_id: t.Optional(t.String({ pattern: hex24 })),
+  author_name: t.Optional(t.String()),   // ⬅️ NEW
+  anonymous: t.Optional(t.Boolean()),    // ⬅️ NEW
 });
 
 export const post = new Elysia({ prefix: "/posts" })
@@ -25,9 +28,39 @@ export const post = new Elysia({ prefix: "/posts" })
     async (ctx) => {
       const { body, user, request } = ctx as any;
 
+      console.log(
+        "[post.create] ctx.user =",
+        user ? { _id: user._id?.toString(), name: user.name } : null,
+        " body.author_id =",
+        body.author_id,
+        " body.author_name =",
+        body.author_name
+      );
+
+      // 1) Prefer explicitly provided author_name / anonymous from body
+      let authorName: string | null =
+        body.author_name ?? user?.name ?? null;
+      let anonymous: boolean =
+        body.anonymous ?? !user;
+
+      // 2) If still no name but we got an author_id, try to look up the user
+      if (!authorName && body.author_id) {
+        try {
+          const authorObjId = new ObjectId(body.author_id);
+          const authorDoc = await users.findOne({ _id: authorObjId });
+
+          if (authorDoc) {
+            authorName = authorDoc.name ?? null;
+            anonymous = false;
+          }
+        } catch (err) {
+          console.error("[post.create] Failed to lookup author by id:", err);
+        }
+      }
+
       const doc: any = {
-        author_name: user?.name ?? null,
-        anonymous: !user,
+        author_name: authorName,
+        anonymous,
         body: body.body,
         image_url: body.image_url ?? null,
         likes: body.likes ?? 0,

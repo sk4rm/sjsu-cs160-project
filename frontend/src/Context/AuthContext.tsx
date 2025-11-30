@@ -26,7 +26,8 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const API_BASE = "http://localhost:3000/api";
+// IMPORTANT: go through the same origin as the frontend (Vite proxy)
+const API_BASE = "/api";
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -45,7 +46,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             name: username,
             handle: parsed.handle ?? (username ? `@${username}` : undefined),
             avatarUrl: parsed.avatarUrl ?? "",
-            isModerator: !!parsed.isModerator, // default false if missing
+            isModerator: !!parsed.isModerator,
           };
           setUser(hydrated);
         }
@@ -71,8 +72,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         throw new Error("Invalid credentials");
       }
 
-      const raw = await res.json(); // could be { ... } or { user: {...} }
-      // If backend returns { user: {...}, token: "..." }, grab user
+      const raw = await res.json();
       const data = (
         raw && typeof raw === "object" && "user" in raw ? raw.user : raw
       ) as {
@@ -133,4 +133,3 @@ export const useAuth = () => {
   if (!ctx) throw new Error("useAuth must be used within <AuthProvider>");
   return ctx;
 };
-
