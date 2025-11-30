@@ -16,8 +16,8 @@ const PostBody = t.Object({
   comments: t.Optional(t.Number({ default: 0 })),
   shares: t.Optional(t.Number({ default: 0 })),
   author_id: t.Optional(t.String({ pattern: hex24 })),
-  author_name: t.Optional(t.String()),   // ⬅️ NEW
-  anonymous: t.Optional(t.Boolean()),    // ⬅️ NEW
+  author_name: t.Optional(t.String()),
+  anonymous: t.Optional(t.Boolean()),
 });
 
 export const post = new Elysia({ prefix: "/posts" })
@@ -37,25 +37,34 @@ export const post = new Elysia({ prefix: "/posts" })
         body.author_name
       );
 
-      // 1) Prefer explicitly provided author_name / anonymous from body
-      let authorName: string | null =
-        body.author_name ?? user?.name ?? null;
-      let anonymous: boolean =
-        body.anonymous ?? !user;
+      // 1) Decide anonymity
+      let anonymous: boolean = body.anonymous ?? !user;
 
-      // 2) If still no name but we got an author_id, try to look up the user
-      if (!authorName && body.author_id) {
+      // 2) Decide author name – prefer DB lookup using author_id
+      let authorName: string | null = null;
+
+      if (body.author_id) {
         try {
           const authorObjId = new ObjectId(body.author_id);
           const authorDoc = await users.findOne({ _id: authorObjId });
 
-          if (authorDoc) {
-            authorName = authorDoc.name ?? null;
-            anonymous = false;
+          if (authorDoc && !anonymous) {
+            const anyAuthor = authorDoc as any;
+            authorName =
+              anyAuthor.username ||
+              anyAuthor.handle ||
+              anyAuthor.name ||
+              anyAuthor.email ||
+              null;
           }
         } catch (err) {
           console.error("[post.create] Failed to lookup author by id:", err);
         }
+      }
+
+      // 3) Fallbacks if we still don't have a name and this is not anonymous
+      if (!authorName && !anonymous) {
+        authorName = body.author_name ?? user?.name ?? null;
       }
 
       const doc: any = {
@@ -69,9 +78,13 @@ export const post = new Elysia({ prefix: "/posts" })
         createdAt: new Date(),
       };
 
-      // if frontend sends author_id, store it too
+      // if frontend sends author_id, store it as ObjectId
       if (body.author_id) {
-        doc.author_id = new ObjectId(body.author_id);
+        try {
+          doc.author_id = new ObjectId(body.author_id);
+        } catch (err) {
+          console.error("[post.create] invalid author_id:", body.author_id, err);
+        }
       }
 
       const res = await posts.insertOne(doc);

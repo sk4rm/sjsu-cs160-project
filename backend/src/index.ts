@@ -9,6 +9,7 @@ import { leaderboard } from "./modules/user/leaderboard"; // public
 import { post } from "./modules/posts";
 import { commentsModule } from "./modules/comment";
 import { currentUser } from "./plugins/currentUser";
+import { profile } from "./modules/profile"; // 👈 NEW: profile routes (/users/me, etc.)
 
 const app = new Elysia()
   .use(currentUser)
@@ -37,7 +38,8 @@ app.group("/api", (api) => api.use(leaderboard)); // /api/leaderboard
 app.group("/api", (api) =>
   api
     .use(auth)           // /api/auth/*
-    .use(user)           // /api/users/*
+    .use(user)           // /api/users/* (signup/login/etc.)
+    .use(profile)        // /api/users/me, /api/users/me/posts
     .use(post)           // /api/posts/*
     .use(commentsModule) // /api/comments/*
 );

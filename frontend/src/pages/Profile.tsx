@@ -8,17 +8,18 @@ import { LogOut, Pencil } from "lucide-react";
 type User = {
   id: string;
   name: string;
-  handle?: string; // e.g. "@emmawilson_photos"
-  school?: string; // e.g. "University of Washington"
-  joinedAt?: string; // ISO date
+  username?: string;   // 👈 add this line
+  handle?: string;
+  school?: string;
+  joinedAt?: string;
   bio?: string;
   avatarUrl?: string | null;
   stats?: {
     posts: number;
-    totalLikes: number;
-    comments: number;
+    points: number;
   };
 };
+
 
 type Post = {
   id: string;
@@ -28,12 +29,225 @@ type Post = {
 
 const API_BASE = "http://localhost:3000/api";
 
-/** ---------- School options (autocomplete) ---------- */
+/** ---------- School options ---------- */
 const SCHOOL_OPTIONS = [
-  "San Jose State University"
+  "San José State University",
+  "San Jose State University",
+  "SJSU",
+  "UC Berkeley",
+  "UC Davis",
+  "UC Los Angeles",
+  "UC San Diego",
+  "UC Santa Barbara",
+  "San Francisco State University",
+  "Cal Poly San Luis Obispo",
+  "Cal Poly Pomona",
+  "Stanford University",
+  "Santa Clara University",
 ];
 
-/** ---------- Utilities ---------- */
+/** ---------- Helpers ---------- */
+function classNames(...classes: (string | false | null | undefined)[]) {
+  return classes.filter(Boolean).join(" ");
+}
+
+/** ---------- Edit types ---------- */
+type EditValues = {
+  avatarUrl: string;
+  name: string;
+  handle: string;
+  school: string;
+  bio: string;
+};
+
+type EditDialogProps = {
+  open: boolean;
+  onClose: () => void;
+  initial: EditValues;
+  saving: boolean;
+  onSubmit: (values: EditValues) => Promise<void>;
+};
+
+function EditDialog({ open, onClose, initial, saving, onSubmit }: EditDialogProps) {
+  const [values, setValues] = useState<EditValues>(initial);
+
+  useEffect(() => {
+    if (open) setValues(initial);
+  }, [open, initial]);
+
+  if (!open) return null;
+
+  function handleChange<K extends keyof EditValues>(key: K, value: EditValues[K]) {
+    setValues((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await onSubmit(values);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Edit Profile</h2>
+          <button
+            type="button"
+            className="text-sm text-neutral-500 hover:text-neutral-800"
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Avatar */}
+          <div className="flex items-center gap-4">
+            <div className="h-16 w-16 overflow-hidden rounded-full bg-neutral-100">
+              {values.avatarUrl ? (
+                <img
+                  src={values.avatarUrl}
+                  alt="Avatar preview"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-sm text-neutral-400">
+                  No photo
+                </div>
+              )}
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-neutral-800">
+                Profile picture
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                className="mt-1 block w-full text-sm"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) {
+                    handleChange("avatarUrl", "");
+                    return;
+                  }
+                  const reader = new FileReader();
+                  reader.onloadend = () => {
+                    const dataUrl = reader.result as string;
+                    handleChange("avatarUrl", dataUrl);
+                  };
+                  reader.readAsDataURL(file);
+                }}
+              />
+              <p className="mt-1 text-xs text-neutral-500">
+                Upload a square image for best results.
+              </p>
+            </div>
+          </div>
+
+          {/* Name + Username */}
+          <div className="grid grid-cols-[2fr,1.5fr] gap-4">
+            <div>
+              <label className="block text-sm font-medium text-neutral-800">
+                Name
+              </label>
+              <input
+                type="text"
+                className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                value={values.name}
+                onChange={(e) => handleChange("name", e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-neutral-800">
+                Username
+              </label>
+              <div className="mt-1 flex items-center rounded-lg border border-neutral-200 pl-2 shadow-sm focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500">
+                <span className="text-sm text-neutral-500">@</span>
+                <input
+                  type="text"
+                  className="w-full border-none bg-transparent px-2 py-2 text-sm focus:outline-none"
+                  value={values.handle}
+                  onChange={(e) =>
+                    handleChange(
+                      "handle",
+                      e.target.value.replace(/[^a-zA-Z0-9_]/g, "")
+                    )
+                  }
+                  placeholder="username"
+                />
+              </div>
+              <p className="mt-1 text-xs text-neutral-500">
+                Letters, numbers, and underscores. 3–20 characters.
+              </p>
+            </div>
+          </div>
+
+          {/* School */}
+          <div>
+            <label className="block text-sm font-medium text-neutral-800">
+              School
+            </label>
+            <input
+              type="text"
+              list="school-options"
+              className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              value={values.school}
+              onChange={(e) => handleChange("school", e.target.value)}
+              placeholder="Your School"
+            />
+            <datalist id="school-options">
+              {SCHOOL_OPTIONS.map((s) => (
+                <option key={s} value={s} />
+              ))}
+            </datalist>
+          </div>
+
+          {/* Bio */}
+          <div>
+            <label className="block text-sm font-medium text-neutral-800">
+              Bio
+            </label>
+            <textarea
+              className="mt-1 w-full min-h-[80px] rounded-lg border border-neutral-200 px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              value={values.bio}
+              onChange={(e) => handleChange("bio", e.target.value)}
+              maxLength={300}
+              placeholder="Tell people a bit about you..."
+            />
+            <div className="mt-1 text-right text-xs text-neutral-500">
+              {values.bio.length}/300
+            </div>
+          </div>
+
+          {/* Footer buttons */}
+          <div className="mt-4 flex justify-end gap-3">
+            <button
+              type="button"
+              className="rounded-lg px-3 py-2 text-sm text-neutral-600 hover:bg-neutral-100"
+              onClick={onClose}
+              disabled={saving}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className={classNames(
+                "rounded-lg px-4 py-2 text-sm font-medium text-white",
+                saving
+                  ? "bg-emerald-400"
+                  : "bg-emerald-600 hover:bg-emerald-700"
+              )}
+              disabled={saving}
+            >
+              {saving ? "Saving..." : "Save changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/** ---------- Utils ---------- */
 function formatJoined(dateISO?: string) {
   if (!dateISO) return "";
   const d = new Date(dateISO);
@@ -51,25 +265,40 @@ export default function Profile() {
   const [saving, setSaving] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
 
-  // Fetch fresh user + posts
+  // Fetch fresh user + posts from backend using userId
   useEffect(() => {
     let isMounted = true;
+
     (async () => {
+      if (!authUser?.id) {
+        setLoading(false);
+        return;
+      }
+
       try {
+        const qs = `?userId=${encodeURIComponent(authUser.id)}`;
         const [uRes, pRes] = await Promise.all([
-          fetch(`${API_BASE}/users/me`, { credentials: "include" }),
-          fetch(`${API_BASE}/users/me/posts`, { credentials: "include" }),
+          fetch(`${API_BASE}/users/me${qs}`),
+          fetch(`${API_BASE}/users/me/posts${qs}`),
         ]);
+
         const u = uRes.ok ? ((await uRes.json()) as User) : authUser;
         const p = pRes.ok ? ((await pRes.json()) as Post[]) : [];
+
         if (isMounted) {
           setUser(u || null);
           setPosts(p);
+        }
+      } catch {
+        if (isMounted) {
+          setUser(authUser ?? null);
+          setPosts([]);
         }
       } finally {
         if (isMounted) setLoading(false);
       }
     })();
+
     return () => {
       isMounted = false;
     };
@@ -84,494 +313,327 @@ export default function Profile() {
       .join("");
   }, [user?.name]);
 
-  // Fallback so something sensible shows even if handle is missing
   const displayName = user?.name ?? "";
   const displayHandle =
-    user?.handle || (user?.name ? `@${user.name}` : undefined);
+    user?.handle || (user?.username ? `@${user.username}` : undefined);
 
   if (loading) {
     return (
       <div className="p-6">
         <div className="h-40 w-full max-w-3xl animate-pulse rounded-2xl bg-neutral-100" />
-        <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-3">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="h-56 animate-pulse rounded-2xl bg-neutral-100" />
-          ))}
+        <div className="mt-6 grid grid-cols-[2fr,1fr] gap-6">
+          <div className="h-40 animate-pulse rounded-2xl bg-neutral-100" />
+          <div className="space-y-3">
+            <div className="h-10 animate-pulse rounded-2xl bg-neutral-100" />
+            <div className="h-10 animate-pulse rounded-2xl bg-neutral-100" />
+          </div>
         </div>
       </div>
     );
   }
 
-  // show LoginForm when logged out
+  if (!authUser) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center bg-neutral-50 px-4">
+        <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-lg">
+          <h1 className="mb-3 text-xl font-semibold text-neutral-900">
+            Sign in to view your profile
+          </h1>
+          <p className="mb-4 text-sm text-neutral-600">
+            Your profile shows your posts, school, and Eco-Leveling stats.
+          </p>
+          <LoginForm onSuccess={() => nav(0)} />
+        </div>
+      </div>
+    );
+  }
+
   if (!user) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-semibold">Profile</h1>
-        <p className="mt-2 text-neutral-600">You need to log in to view this page.</p>
-
-        <div className="mt-6 max-w-md rounded-2xl border bg-white p-6 shadow-sm">
-          <LoginForm onSuccess={() => nav("/profile", { replace: true })} />
-        </div>
+        <p className="text-sm text-neutral-500">
+          Couldn&apos;t load your profile. Try refreshing the page.
+        </p>
       </div>
     );
   }
 
+  const editInitial: EditValues = {
+    avatarUrl: user.avatarUrl || "",
+    name: user.name,
+    handle: (user.handle || "").replace(/^@/, ""),
+    school: user.school || "",
+    bio: user.bio || "",
+  };
+
   return (
-    <div className="p-6">
-      {/* Header Card */}
-      <div className="max-w-4xl rounded-2xl border bg-white p-6 shadow-sm">
-        <div className="flex items-start gap-5">
-          {/* Avatar */}
-          <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-full bg-neutral-100 ring-2 ring-neutral-200">
-            {user.avatarUrl ? (
-              <img
-                src={user.avatarUrl}
-                alt={user.name}
-                className="h-full w-full object-cover"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).style.display = "none";
-                }}
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-3xl font-semibold text-neutral-500">
-                {initials}
-              </div>
-            )}
+    <div className="min-h-screen bg-neutral-50">
+      <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 md:px-6">
+        {/* Header */}
+        <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+          <div>
+            <h1 className="text-2xl font-semibold text-neutral-900">
+              Profile
+            </h1>
+            <p className="mt-1 text-sm text-neutral-600">
+              Manage your Eco-Leveling presence.
+            </p>
           </div>
 
-          {/* Info */}
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="truncate text-xl font-semibold">{displayName}</div>
-                {displayHandle && (
-                  <div className="truncate text-neutral-500">{displayHandle}</div>
-                )}
-                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-neutral-500">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-800 shadow-sm hover:bg-neutral-50"
+              onClick={() => setEditOpen(true)}
+            >
+              <Pencil size={16} />
+              Edit Profile
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 rounded-full border border-red-100 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
+              onClick={async () => {
+                await logout();
+                nav("/");
+              }}
+            >
+              <LogOut size={16} />
+              Sign Out
+            </button>
+          </div>
+        </div>
+
+        {/* Main layout */}
+        <div className="grid gap-6 md:grid-cols-[minmax(0,2fr),minmax(0,1.2fr)]">
+          {/* Left column */}
+          <div className="space-y-4">
+            {/* Profile card */}
+            <section className="rounded-2xl bg-white p-6 shadow-sm">
+              <div className="flex gap-4">
+                {/* Avatar */}
+                <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full bg-gradient-to-br from-emerald-100 to-emerald-300">
+                  {user.avatarUrl ? (
+                    <img
+                      src={user.avatarUrl}
+                      alt={displayName}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-xl font-semibold text-emerald-900">
+                      {initials}
+                    </div>
+                  )}
+                </div>
+
+                {/* Name + bio */}
+                <div className="min-w-0 flex-1">
+                  <h2 className="truncate text-xl font-semibold text-neutral-900">
+                    {displayName || "Unnamed user"}
+                  </h2>
+                  {displayHandle && (
+                    <p className="mt-0.5 text-sm text-neutral-500">
+                      {displayHandle}
+                    </p>
+                  )}
                   {user.school && (
-                    <span className="inline-flex items-center gap-1">
-                      <span className="i-lucide-graduation-cap" />
-                      {user.school}
-                    </span>
+                    <p className="mt-1 text-sm text-neutral-600">
+                      🎓 {user.school}
+                    </p>
+                  )}
+                  {user.bio && (
+                    <p className="mt-2 line-clamp-3 text-sm text-neutral-700">
+                      {user.bio}
+                    </p>
                   )}
                   {user.joinedAt && (
-                    <span className="inline-flex items-center gap-1">
-                      <span className="i-lucide-calendar" />
+                    <p className="mt-2 text-xs text-neutral-400">
                       Joined {formatJoined(user.joinedAt)}
-                    </span>
+                    </p>
                   )}
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    setEditOpen(true);
-                  }}
-                  className="inline-flex items-center gap-1 rounded-xl border px-3 py-2 text-sm hover:bg-neutral-50"
-                >
-                  <Pencil className="h-4 w-4" />
-                  <span>Edit Profile</span>
-                </button>
-                <button
-                  onClick={async () => {
-                    await logout();
-                    nav("/profile", { replace: true });
-                  }}
-                  className="inline-flex items-center gap-1 rounded-xl border px-3 py-2 text-sm hover:bg-neutral-50"
-                >
-                  <LogOut className="h-4 w-4" />
-                  <span>Sign Out</span>
-                </button>
+              {/* Stats */}
+              <div className="mt-4 grid grid-cols-3 gap-3">
+                <div className="rounded-xl bg-neutral-50 p-3 text-center">
+                  <p className="text-xs uppercase tracking-wide text-neutral-500">
+                    Posts
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-neutral-900">
+                    {posts.length}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-neutral-50 p-3 text-center">
+                  <p className="text-xs uppercase tracking-wide text-neutral-500">
+                    Points
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-neutral-900">
+                    {user.stats?.points ?? 0}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-neutral-50 p-3 text-center">
+                  <p className="text-xs uppercase tracking-wide text-neutral-500">
+                    Level
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-neutral-900">
+                    {Math.floor((user.stats?.points ?? 0) / 100) + 1}
+                  </p>
+                </div>
               </div>
-            </div>
+            </section>
 
-            {/* Bio */}
-            <p className="mt-3 max-w-2xl whitespace-pre-wrap text-neutral-800">
-              {user.bio || " "}
-            </p>
+            {/* Posts grid */}
+            <section className="rounded-2xl bg-white p-4 shadow-sm">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-neutral-900">
+                  Posts
+                </h3>
+                <p className="text-xs text-neutral-500">
+                  {posts.length === 0
+                    ? "No posts yet"
+                    : `${posts.length} post${posts.length === 1 ? "" : "s"}`}
+                </p>
+              </div>
 
-            {/* Stats */}
-            <div className="mt-4 flex gap-8 text-sm">
-              <Stat label="Posts" value={user.stats?.posts ?? posts.length} />
-              <Stat label="Total Likes" value={user.stats?.totalLikes ?? 0} />
-              <Stat label="Comments" value={user.stats?.comments ?? 0} />
-            </div>
+              {posts.length === 0 ? (
+                <div className="flex min-h-[120px] items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-neutral-50 text-xs text-neutral-500">
+                  Your image posts will appear here.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                  {posts.map((post) => (
+                    <div
+                      key={post.id}
+                      className="group relative aspect-square overflow-hidden rounded-xl bg-neutral-100"
+                    >
+                      <img
+                        src={post.imageUrl}
+                        alt={post.alt || "Post"}
+                        className="h-full w-full object-cover transition group-hover:scale-105"
+                      />
+                      {post.alt && (
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2 text-[10px] text-white opacity-0 transition group-hover:opacity-100">
+                          <p className="line-clamp-2">{post.alt}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
-        </div>
-      </div>
 
-      {/* Posts */}
-      <div className="mt-8 flex items-center gap-2">
-        <h2 className="text-lg font-semibold">Posts</h2>
-        <span className="rounded-full bg-neutral-100 px-2 text-sm text-neutral-600">
-          {(user.stats?.posts ?? posts.length) || 0}
-        </span>
-      </div>
-
-      <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {posts.length === 0 ? (
-          <EmptyPosts />
-        ) : (
-          posts.map((p) => (
-            <div
-              key={p.id}
-              className="overflow-hidden rounded-2xl border bg-white shadow-sm"
-            >
-              <img
-                src={p.imageUrl}
-                alt={p.alt || ""}
-                className="h-56 w-full object-cover"
-                loading="lazy"
-              />
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* Edit Profile Dialog */}
-      {editOpen && user && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
-          onClick={() => !saving && setEditOpen(false)}
-        >
-          <div
-            className="w-full max-w-xl rounded-2xl border bg-white p-6 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold">Edit Profile</h3>
-              <p className="text-sm text-neutral-500">
-                Update your profile details and photo.
-              </p>
-            </div>
-
-            <EditForm
-              initial={{
-                name: user.name || "",
-                handle: user.handle?.replace(/^@/, "") || "",
-                school: user.school || "",
-                bio: user.bio || "",
-                avatarUrl: user.avatarUrl || "",
-              }}
-              saving={saving}
-              onCancel={() => setEditOpen(false)}
-              onSave={async (values) => {
-                const payload: Record<string, string> = {};
-
-                if (values.name !== (user.name || "")) {
-                  payload.name = values.name.trim();
-                }
-
-                const normalizedHandle = values.handle.trim();
-                const currentHandle = (user.handle || "").replace(/^@/, "");
-                if (normalizedHandle && normalizedHandle !== currentHandle) {
-                  payload.username = normalizedHandle;
-                }
-
-                if (values.school !== (user.school || "")) {
-                  payload.school = values.school.trim();
-                }
-
-                if (values.bio !== (user.bio || "")) {
-                  payload.bio = values.bio;
-                }
-
-                if ((values.avatarUrl || "") !== (user.avatarUrl || "")) {
-                  // backend gets a string (URL or data URL)
-                  payload.avatarUrl = values.avatarUrl;
-                }
-
-                if (Object.keys(payload).length === 0) {
-                  setEditOpen(false);
-                  return;
-                }
-
-                setSaving(true);
-                try {
-                  const res = await fetch(`${API_BASE}/users/me`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    credentials: "include",
-                    body: JSON.stringify(payload),
-                  });
-                  if (!res.ok) {
-                    if (res.status === 409)
-                      throw new Error("That username is already taken.");
-                    const err = await res.json().catch(() => ({}));
-                    throw new Error(err?.message || "Failed to update profile");
-                  }
-                  setUser((u) =>
-                    u
-                      ? {
-                          ...u,
-                          name: payload.name ?? u.name,
-                          handle:
-                            payload.username !== undefined
-                              ? `@${payload.username}`
-                              : u.handle ?? (u.name ? `@${u.name}` : undefined),
-                          school: payload.school ?? u.school,
-                          bio: payload.bio ?? u.bio,
-                          avatarUrl:
-                            payload.avatarUrl !== undefined
-                              ? payload.avatarUrl
-                              : u.avatarUrl,
-                        }
-                      : u
-                  );
-                  setEditOpen(false);
-                } catch (e: any) {
-                  alert(e?.message || "Update failed");
-                } finally {
-                  setSaving(false);
-                }
-              }}
-            />
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** ---------- Small bits ---------- */
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div>
-      <div className="text-base font-semibold">{value}</div>
-      <div className="text-neutral-500">{label}</div>
-    </div>
-  );
-}
-
-function EmptyPosts() {
-  return (
-    <div className="col-span-full">
-      <div className="flex h-40 items-center justify-center rounded-2xl border bg-white text-neutral-500">
-        No posts yet.
-      </div>
-    </div>
-  );
-}
-
-function EditForm({
-  initial,
-  saving,
-  onCancel,
-  onSave,
-}: {
-  initial: {
-    name: string;
-    handle: string;
-    school: string;
-    bio: string;
-    avatarUrl: string;
-  };
-  saving: boolean;
-  onCancel: () => void;
-  onSave: (values: {
-    name: string;
-    handle: string;
-    school: string;
-    bio: string;
-    avatarUrl: string;
-  }) => void;
-}) {
-  const [name, setName] = useState(initial.name);
-  const [handle, setHandle] = useState(initial.handle);
-  const [school, setSchool] = useState(initial.school);
-  const [bio, setBio] = useState(initial.bio);
-  const [avatarPreview, setAvatarPreview] = useState(initial.avatarUrl || "");
-  const [schoolFocused, setSchoolFocused] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  const filteredSchools =
-    school.length < 2
-      ? []
-      : SCHOOL_OPTIONS.filter((s) =>
-          s.toLowerCase().includes(school.toLowerCase())
-        ).slice(0, 6);
-
-  function validate() {
-    // username: 3–20, letters/numbers/underscore only
-    if (handle && !/^[a-zA-Z0-9_]{3,20}$/.test(handle)) {
-      return "Username must be 3–20 characters (letters, numbers, underscore).";
-    }
-    if (name.trim().length === 0) {
-      return "Name is required.";
-    }
-    return null;
-  }
-
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        // data URL string – safe to send as JSON
-        setAvatarPreview(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
-  }
-
-  return (
-    <form
-      className="space-y-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const v = validate();
-        if (v) {
-          setErr(v);
-          return;
-        }
-        setErr(null);
-        onSave({
-          name: name.trim(),
-          handle: handle.trim(),
-          school: school.trim(),
-          bio,
-          avatarUrl: avatarPreview,
-        });
-      }}
-    >
-      {err && (
-        <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {err}
-        </div>
-      )}
-
-      {/* Avatar upload */}
-      <div className="flex items-center gap-4">
-        <div className="h-16 w-16 overflow-hidden rounded-full bg-neutral-100 ring-2 ring-neutral-200">
-          {avatarPreview ? (
-            <img
-              src={avatarPreview}
-              alt="Avatar preview"
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-xs text-neutral-400">
-              No photo
-            </div>
-          )}
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">
-            Profile picture
-          </label>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleFileChange}
-            className="text-sm"
-          />
-          <p className="mt-1 text-xs text-neutral-500">
-            Upload a square image for best results.
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-sm font-medium">Name</label>
-          <input
-            className="w-full rounded-xl border px-3 py-2"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            maxLength={60}
-            required
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Username</label>
-          <div className="flex items-center">
-            <span className="rounded-l-xl border border-r-0 bg-neutral-50 px-3 py-2 text-neutral-500">
-              @
-            </span>
-            <input
-              className="w-full rounded-r-xl border px-3 py-2"
-              value={handle}
-              onChange={(e) => setHandle(e.target.value)}
-              placeholder="emmawilson_photos"
-              maxLength={20}
-            />
-          </div>
-          <p className="mt-1 text-xs text-neutral-500">
-            Letters, numbers, and underscores. 3–20 characters.
-          </p>
-        </div>
-      </div>
-
-      {/* School with autocomplete */}
-      <div className="relative">
-        <label className="mb-1 block text-sm font-medium">School</label>
-        <input
-          className="w-full rounded-xl border px-3 py-2"
-          value={school}
-          onChange={(e) => setSchool(e.target.value)}
-          onFocus={() => setSchoolFocused(true)}
-          onBlur={() => {
-            // delay so clicks on suggestions still register
-            setTimeout(() => setSchoolFocused(false), 120);
-          }}
-          placeholder="Your School"
-          maxLength={80}
-        />
-
-        {schoolFocused && filteredSchools.length > 0 && (
-          <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border bg-white text-sm shadow-lg">
-            {filteredSchools.map((option) => (
-              <li key={option}>
+          {/* Right column */}
+          <aside className="space-y-4">
+            <section className="rounded-2xl bg-white p-4 shadow-sm">
+              <h3 className="text-sm font-semibold text-neutral-900">
+                Quick actions
+              </h3>
+              <div className="mt-3 space-y-2 text-sm">
                 <button
                   type="button"
-                  className="flex w-full px-3 py-2 text-left hover:bg-neutral-100"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => {
-                    setSchool(option);
-                    setSchoolFocused(false);
-                  }}
+                  onClick={() => setEditOpen(true)}
+                  className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-left text-neutral-800 hover:bg-neutral-50"
                 >
-                  {option}
+                  Edit profile details
                 </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+                <button
+                  type="button"
+                  onClick={() => nav("/upload")}
+                  className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-left text-neutral-800 hover:bg-neutral-50"
+                >
+                  Upload a new post
+                </button>
+                <button
+                  type="button"
+                  onClick={() => nav("/settings")}
+                  className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-left text-neutral-800 hover:bg-neutral-50"
+                >
+                  Account & app settings
+                </button>
+              </div>
+            </section>
 
-      <div>
-        <label className="mb-1 block text-sm font-medium">Bio</label>
-        <textarea
-          className="h-28 w-full resize-none rounded-xl border px-3 py-2"
-          value={bio}
-          onChange={(e) => setBio(e.target.value)}
-          maxLength={300}
-          placeholder="Tell people a bit about you…"
-        />
-        <div className="mt-1 text-right text-xs text-neutral-500">
-          {bio.length}/300
+            <section className="rounded-2xl bg-white p-4 shadow-sm">
+              <h3 className="text-sm font-semibold text-neutral-900">
+                Eco-Leveling tips
+              </h3>
+              <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-neutral-600">
+                <li>Share before/after photos of clean-ups or recycling.</li>
+                <li>Add detailed descriptions so others can learn from you.</li>
+                <li>Tag your posts clearly so moderators can award points.</li>
+              </ul>
+            </section>
+          </aside>
         </div>
       </div>
 
-      <div className="mt-2 flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={saving}
-          className="rounded-xl border px-4 py-2 text-sm hover:bg-neutral-50 disabled:opacity-60"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-xl bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-60"
-        >
-          {saving ? "Saving…" : "Save changes"}
-        </button>
-      </div>
-    </form>
+      {/* Edit dialog */}
+      <EditDialog
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        initial={editInitial}
+        saving={saving}
+        onSubmit={async (values) => {
+          if (!user || !authUser?.id) return;
+
+          const payload: Record<string, string> = {
+            userId: authUser.id,
+          };
+
+          if (values.name !== (user.name || "")) {
+            payload.name = values.name.trim();
+          }
+
+          const normalizedHandle = values.handle.trim();
+          const currentHandle = (user.handle || "").replace(/^@/, "");
+          if (normalizedHandle && normalizedHandle !== currentHandle) {
+            payload.username = normalizedHandle;
+          }
+
+          if (values.school !== (user.school || "")) {
+            payload.school = values.school.trim();
+          }
+
+          if (values.bio !== (user.bio || "")) {
+            payload.bio = values.bio;
+          }
+
+          if ((values.avatarUrl || "") !== (user.avatarUrl || "")) {
+            payload.avatarUrl = values.avatarUrl;
+          }
+
+          if (Object.keys(payload).length === 1) {
+            // only userId, nothing else changed
+            setEditOpen(false);
+            return;
+          }
+
+          setSaving(true);
+          try {
+            const res = await fetch(`${API_BASE}/users/me`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+
+            if (!res.ok) {
+              if (res.status === 409)
+                throw new Error("That username is already taken.");
+              const err = await res.json().catch(() => ({}));
+              throw new Error(err?.message || "Failed to update profile");
+            }
+
+            const updated = (await res.json()) as User;
+            setUser(updated);
+            setEditOpen(false);
+          } catch (e: any) {
+            alert(e?.message || "Update failed");
+          } finally {
+            setSaving(false);
+          }
+        }}
+      />
+    </div>
   );
 }

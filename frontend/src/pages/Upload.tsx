@@ -5,20 +5,34 @@ function isHex24(s: string) {
   return /^[a-fA-F0-9]{24}$/.test(s);
 }
 
+type ProfileUser = {
+  id: string;
+  name: string;
+  username?: string;
+  handle?: string;
+};
+
 export default function Upload() {
   const { user } = useAuth(); // logged-in user (or null)
 
   const [authorId, setAuthorId] = useState("");
   const [body, setBody] = useState("");
   const [imageUrl, setImageUrl] = useState("");
-  const [anonymous, setAnonymous] = useState(false); // ⬅️ NEW
+  const [anonymous, setAnonymous] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdId, setCreatedId] = useState<string | null>(null);
 
-  // Try to pre-fill author from /api/auth/me (if logged in)
+  const [profileUser, setProfileUser] = useState<ProfileUser | null>(null);
+
+  // Prefer authUser.id for authorId; fall back to /api/auth/me
   useEffect(() => {
     (async () => {
+      if (user?.id && isHex24(user.id)) {
+        setAuthorId(user.id);
+        return;
+      }
+
       try {
         const res = await fetch("/api/auth/me", { credentials: "include" });
         if (!res.ok) return;
@@ -28,7 +42,46 @@ export default function Upload() {
         /* ignore */
       }
     })();
-  }, []);
+  }, [user?.id]);
+
+  // Fetch fresh profile so "Posting as" shows latest name
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      if (!user?.id) {
+        setProfileUser(null);
+        return;
+      }
+      try {
+        const res = await fetch(
+          `/api/users/me?userId=${encodeURIComponent(user.id)}`
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        setProfileUser({
+          id: data.id,
+          name: data.name ?? "",
+          username: data.username ?? undefined,
+          handle: data.handle ?? undefined,
+        });
+      } catch {
+        /* ignore */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  const postingName =
+    profileUser?.handle ||
+    profileUser?.username ||
+    profileUser?.name ||
+    user?.name ||
+    "user";
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -53,8 +106,6 @@ export default function Upload() {
         credentials: "include",
         body: JSON.stringify({
           author_id: authorId || undefined,
-          // if logged in & NOT anonymous, send your name
-          author_name: user && !anonymous ? user.name : undefined,
           // if logged in, use checkbox; if not logged in, always anonymous
           anonymous: user ? anonymous : true,
           body: body.trim(),
@@ -96,6 +147,7 @@ export default function Upload() {
               onChange={(e) => setAuthorId(e.target.value)}
               placeholder="(auto-filled if logged in)"
               className="w-full rounded-lg border border-neutral-300 px-3 py-2 outline-none focus:border-neutral-500"
+              disabled={!!user?.id}
             />
             {!authorId || isHex24(authorId) ? null : (
               <p className="mt-1 text-sm text-red-600">
@@ -155,7 +207,7 @@ export default function Upload() {
                 <span className="text-xs text-neutral-500">
                   {anonymous
                     ? "Your name will not be shown on this post."
-                    : `Posting as ${user.name}.`}
+                    : `Posting as ${postingName}.`}
                 </span>
               </label>
             ) : (
