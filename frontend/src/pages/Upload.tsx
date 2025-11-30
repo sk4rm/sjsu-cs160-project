@@ -98,6 +98,12 @@ export default function Upload() {
       return;
     }
 
+    // 🔹 NEW: require an image URL
+    if (!imageUrl.trim()) {
+      setError("An image URL is required for posts right now.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const res = await fetch("/api/posts", {
@@ -106,10 +112,13 @@ export default function Upload() {
         credentials: "include",
         body: JSON.stringify({
           author_id: authorId || undefined,
+          // 🔹 NEW: snapshot of current display name for this post
+          author_name:
+            user && !anonymous ? postingName : undefined,
           // if logged in, use checkbox; if not logged in, always anonymous
           anonymous: user ? anonymous : true,
           body: body.trim(),
-          image_url: imageUrl.trim() || undefined,
+          image_url: imageUrl.trim(), // guaranteed non-empty now
         }),
       });
 
@@ -158,7 +167,8 @@ export default function Upload() {
 
           <div>
             <label className="mb-1 block text-sm font-medium text-neutral-700">
-              Image URL (optional)
+              {/* 🔹 updated label to show it's required */}
+              Image URL <span className="text-red-500">*</span>
             </label>
             <input
               value={imageUrl}
