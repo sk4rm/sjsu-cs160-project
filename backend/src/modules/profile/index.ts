@@ -5,6 +5,7 @@ import { database } from "../../db";
 
 const usersCollection = database.collection("users");
 const postsCollection = database.collection("posts");
+const commentsCollection = database.collection("comments"); // ⬅️ NEW
 
 // NOTE: For these profile routes, we rely on userId
 // sent from the frontend instead of cookies/session.
@@ -151,11 +152,13 @@ export const profile = new Elysia({ prefix: "/users" })
         return { message: "No changes" };
       }
 
+      // 1) Update the user document
       await usersCollection.updateOne(
         { _id: userObjectId },
         { $set: updates }
       );
 
+      // 2) Load the updated user
       const updated = await usersCollection.findOne({ _id: userObjectId });
       if (!updated) {
         set.status = 500;
@@ -164,6 +167,24 @@ export const profile = new Elysia({ prefix: "/users" })
 
       const updatedUsername = (updated as any).username ?? null;
 
+      // 3) If the display name changed, cascade to posts + comments
+      if (updates.name) {
+        const newName = (updated as any).name ?? "";
+
+        // Update all posts authored by this user
+        await postsCollection.updateMany(
+          { author_id: userObjectId },
+          { $set: { author_name: newName } }
+        );
+
+        // Update all comments authored by this user
+        await commentsCollection.updateMany(
+          { author_id: userObjectId },
+          { $set: { author_name: newName } }
+        );
+      }
+
+      // 4) Return the updated user shape the frontend expects
       return {
         id: updated._id.toString(),
         _id: updated._id.toString(),

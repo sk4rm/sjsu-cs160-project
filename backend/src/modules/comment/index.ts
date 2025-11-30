@@ -5,7 +5,7 @@ import { database } from "../../db";
 const comments = database.collection("comments");
 const posts = database.collection("posts");
 const audits = database.collection("audits");
-const users = database.collection("users"); // ⬅️ NEW
+const users = database.collection("users");
 
 export const commentsModule = new Elysia({ prefix: "/comments" })
 
@@ -44,26 +44,31 @@ export const commentsModule = new Elysia({ prefix: "/comments" })
 
       const postObjectId = new ObjectId(body.post_id);
 
-      // Prefer fields coming from the frontend (like we do for posts),
-      // then fall back to ctx.user, then anonymous.
-      let authorName: string | null =
-        body.author_name ?? user?.name ?? null;
-      let anonymous: boolean =
-        body.anonymous ?? !user;
+      // Figure out the author ObjectId
+      let authorObjectId: ObjectId | null = null;
 
-      // Optional: if we got an author_id but still no name, look up the user
-      if (!authorName && body.author_id) {
+      if (body.author_id && ObjectId.isValid(body.author_id)) {
+        authorObjectId = new ObjectId(body.author_id);
+      } else if (user?._id) {
+        // ctx.user._id might already be an ObjectId; wrapping again is safe
+        authorObjectId = new ObjectId(user._id);
+      }
+
+      // Always look up the *current* name from the users collection.
+      // Do NOT trust body.author_name or user.name (cookie may be stale).
+      let authorName: string | null = null;
+      if (authorObjectId) {
         try {
-          const authorObjId = new ObjectId(body.author_id);
-          const authorDoc = await users.findOne({ _id: authorObjId });
-          if (authorDoc) {
-            authorName = authorDoc.name ?? null;
-            anonymous = false;
-          }
+          const authorDoc = await users.findOne({ _id: authorObjectId });
+          authorName = (authorDoc as any)?.name ?? null;
         } catch (err) {
-          console.error("[comment.create] Failed to lookup author by id:", err);
+          console.error("[comment.create] Failed to load author from users:", err);
         }
       }
+
+      // Anonymous flag – if not logged in or no author id, force anonymous.
+      let anonymous: boolean =
+        body.anonymous ?? !authorObjectId;
 
       const doc: any = {
         post_id: postObjectId,
@@ -74,8 +79,8 @@ export const commentsModule = new Elysia({ prefix: "/comments" })
         createdAt: new Date(),
       };
 
-      if (body.author_id) {
-        doc.author_id = new ObjectId(body.author_id);
+      if (authorObjectId) {
+        doc.author_id = authorObjectId;
       }
 
       const res = await comments.insertOne(doc);
@@ -89,8 +94,8 @@ export const commentsModule = new Elysia({ prefix: "/comments" })
       try {
         await audits.insertOne({
           action: "comment.create",
-          actor_user_id: user?._id ?? null,
-          actor_name: user?.name ?? null,
+          actor_user_id: user?._id ?? authorObjectId ?? null,
+          actor_name: authorName ?? user?.name ?? null,
           post_target: body.post_id,
           target: { collection: "comments", id: res.insertedId },
           ip:
@@ -110,9 +115,11 @@ export const commentsModule = new Elysia({ prefix: "/comments" })
       body: t.Object({
         post_id: t.String({ pattern: "^[a-fA-F0-9]{24}$" }),
         body: t.String(),
-        author_id: t.Optional(t.String({ pattern: "^[a-fA-F0-9]{24}$" })), // ⬅️ NEW
-        author_name: t.Optional(t.String()),                               // ⬅️ NEW
-        anonymous: t.Optional(t.Boolean()),                                // ⬅️ NEW
+        author_id: t.Optional(t.String({ pattern: "^[a-fA-F0-9]{24}$" })),
+        // we still accept these fields for compatibility, but we ignore
+        // author_name and recompute it from the users collection.
+        author_name: t.Optional(t.String()),
+        anonymous: t.Optional(t.Boolean()),
       }),
     }
   )
