@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
+import { useAuth } from "../Context/AuthContext";
 
 type ApiComment = {
   _id: string;
   post_id: string;
   author_name?: string | null;
-  author_id?: string;        // merged
+  author_id?: string;
   anonymous?: boolean;
   body: string;
   likes?: number;
@@ -13,13 +14,13 @@ type ApiComment = {
 
 export default function CommentsPanel({
   postId,
-  meId,
   onCountChange,
 }: {
   postId: string;
-  meId?: string;              // optional if user isn't logged in
   onCountChange?: (n: number) => void;
 }) {
+  const { user } = useAuth();
+
   const [comments, setComments] = useState<ApiComment[]>([]);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
@@ -67,7 +68,9 @@ export default function CommentsPanel({
         body: JSON.stringify({
           post_id: postId,
           body: text.trim(),
-          author_id: meId,
+          author_id: user?.id,
+          author_name: user?.name,
+          anonymous: user ? false : true,
         }),
       });
       if (!res.ok) throw new Error(await res.text());
@@ -97,9 +100,7 @@ export default function CommentsPanel({
           {comments.map((c) => (
             <div key={c._id} className="rounded-lg bg-white p-3 shadow-sm">
               <div className="text-xs text-neutral-500">
-                {c.anonymous || !c.author_name
-                  ? "Anonymous"
-                  : c.author_name}
+                {c.anonymous || !c.author_name ? "Anonymous" : c.author_name}
               </div>
 
               <div className="mt-1 text-sm text-neutral-800">{c.body}</div>

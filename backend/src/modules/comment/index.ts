@@ -5,6 +5,7 @@ import { database } from "../../db";
 const comments = database.collection("comments");
 const posts = database.collection("posts");
 const audits = database.collection("audits");
+const users = database.collection("users"); // ⬅️ NEW
 
 export const commentsModule = new Elysia({ prefix: "/comments" })
 
@@ -19,10 +20,11 @@ export const commentsModule = new Elysia({ prefix: "/comments" })
         .sort({ createdAt: 1 })
         .toArray();
 
-      return list.map((c) => ({
+      return list.map((c: any) => ({
         ...c,
         _id: c._id.toString(),
         post_id: c.post_id.toString(),
+        author_id: c.author_id ? c.author_id.toString() : undefined,
       }));
     },
     {
@@ -42,14 +44,39 @@ export const commentsModule = new Elysia({ prefix: "/comments" })
 
       const postObjectId = new ObjectId(body.post_id);
 
-      const doc = {
+      // Prefer fields coming from the frontend (like we do for posts),
+      // then fall back to ctx.user, then anonymous.
+      let authorName: string | null =
+        body.author_name ?? user?.name ?? null;
+      let anonymous: boolean =
+        body.anonymous ?? !user;
+
+      // Optional: if we got an author_id but still no name, look up the user
+      if (!authorName && body.author_id) {
+        try {
+          const authorObjId = new ObjectId(body.author_id);
+          const authorDoc = await users.findOne({ _id: authorObjId });
+          if (authorDoc) {
+            authorName = authorDoc.name ?? null;
+            anonymous = false;
+          }
+        } catch (err) {
+          console.error("[comment.create] Failed to lookup author by id:", err);
+        }
+      }
+
+      const doc: any = {
         post_id: postObjectId,
-        author_name: user?.name ?? null,
-        anonymous: !user,
+        author_name: authorName,
+        anonymous,
         body: body.body,
         likes: 0,
         createdAt: new Date(),
       };
+
+      if (body.author_id) {
+        doc.author_id = new ObjectId(body.author_id);
+      }
 
       const res = await comments.insertOne(doc);
 
@@ -83,6 +110,9 @@ export const commentsModule = new Elysia({ prefix: "/comments" })
       body: t.Object({
         post_id: t.String({ pattern: "^[a-fA-F0-9]{24}$" }),
         body: t.String(),
+        author_id: t.Optional(t.String({ pattern: "^[a-fA-F0-9]{24}$" })), // ⬅️ NEW
+        author_name: t.Optional(t.String()),                               // ⬅️ NEW
+        anonymous: t.Optional(t.Boolean()),                                // ⬅️ NEW
       }),
     }
   )
@@ -93,13 +123,14 @@ export const commentsModule = new Elysia({ prefix: "/comments" })
   .get(
     "/:id",
     async ({ params }) => {
-      const c = await comments.findOne({ _id: new ObjectId(params.id) });
+      const c: any = await comments.findOne({ _id: new ObjectId(params.id) });
       if (!c) return new Response("Not found", { status: 404 });
 
       return {
         ...c,
         _id: c._id.toString(),
         post_id: c.post_id.toString(),
+        author_id: c.author_id ? c.author_id.toString() : undefined,
       };
     },
     {
@@ -162,7 +193,7 @@ export const commentsModule = new Elysia({ prefix: "/comments" })
       const _id = new ObjectId(params.id);
 
       // find the comment first so we know which post to decrement
-      const existing = await comments.findOne({ _id });
+      const existing: any = await comments.findOne({ _id });
       if (!existing) {
         return { deleted: 0 };
       }

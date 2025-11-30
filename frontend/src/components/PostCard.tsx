@@ -15,13 +15,7 @@ export type ApiPost = {
   createdAt?: string | Date;
 };
 
-export default function PostCard({
-  post,
-  meId,
-}: {
-  post: ApiPost;
-  meId?: string; // optional; can be passed from auth/user context later
-}) {
+export default function PostCard({ post }: { post: ApiPost }) {
   const [open, setOpen] = useState(false);
   const [commentCount, setCommentCount] = useState<number>(
     post.comments ?? 0
@@ -30,7 +24,6 @@ export default function PostCard({
   const likeCount = post.likes ?? 0;
   const shareCount = post.shares ?? 0;
 
-  // Prefer anonymous logic / author_name, but fall back to author_id or default label
   const baseAuthorLabel = post.anonymous
     ? "Anonymous"
     : post.author_name ??
@@ -100,12 +93,11 @@ export default function PostCard({
           </button>
         </div>
 
-        {/* Comments panel (all logic lives inside CommentsPanel) */}
+        {/* Comments panel */}
         {open && (
           <div className="mt-4">
             <CommentsPanel
               postId={post._id}
-              meId={meId}
               onCountChange={setCommentCount}
             />
           </div>
