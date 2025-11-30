@@ -11,6 +11,7 @@ const hex24 = "^[a-fA-F0-9]{24}$";
 const PostBody = t.Object({
   body: t.String(),
   image_url: t.Optional(t.String()),
+  video_url: t.Optional(t.String()),   // 🔹 NEW
   // optional extra fields if frontend sends them
   likes: t.Optional(t.Number({ default: 0 })),
   comments: t.Optional(t.Number({ default: 0 })),
@@ -72,6 +73,7 @@ export const post = new Elysia({ prefix: "/posts" })
         anonymous,
         body: body.body,
         image_url: body.image_url ?? null,
+        video_url: body.video_url ?? null,   // 🔹 NEW
         likes: body.likes ?? 0,
         comments: body.comments ?? 0,
         shares: body.shares ?? 0,
@@ -134,6 +136,7 @@ export const post = new Elysia({ prefix: "/posts" })
       anonymous: !!p.anonymous,
       body: p.body,
       image_url: p.image_url ?? null,
+      video_url: p.video_url ?? null,       // 🔹 NEW
       likes: p.likes ?? 0,
       comments: p.comments ?? 0,
       shares: p.shares ?? 0,
@@ -149,6 +152,7 @@ export const post = new Elysia({ prefix: "/posts" })
       const update: Record<string, unknown> = {};
 
       if (body.image_url !== undefined) update.image_url = body.image_url;
+      if (body.video_url !== undefined) update.video_url = body.video_url; // 🔹 NEW
       if (body.body !== undefined) update.body = body.body;
       if (body.likes !== undefined) update.likes = body.likes;
       if (body.comments !== undefined) update.comments = body.comments;

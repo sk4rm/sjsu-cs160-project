@@ -9,6 +9,7 @@ export type ApiPost = {
   author_id?: string;
   body: string;
   image_url?: string | null;
+  video_url?: string | null;   // 🔹 NEW
   likes?: number;
   comments?: number;
   shares?: number;
@@ -34,19 +35,29 @@ export default function PostCard({ post }: { post: ApiPost }) {
   const created =
     post.createdAt ? new Date(post.createdAt).toLocaleString() : "";
 
+  // Decide what media to show:
+  const hasImage = !!post.image_url;
+  const hasVideo = !!post.video_url;
+
   return (
     <article className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
-      {/* Image */}
+      {/* Media (image or video) */}
       <div className="aspect-[16/10] w-full overflow-hidden bg-neutral-100">
-        {post.image_url ? (
+        {hasImage ? (
           <img
-            src={post.image_url}
+            src={post.image_url as string}
             alt=""
+            className="h-full w-full object-cover"
+          />
+        ) : hasVideo ? (
+          <video
+            src={post.video_url as string}
+            controls
             className="h-full w-full object-cover"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-neutral-400">
-            No image
+            No media
           </div>
         )}
       </div>

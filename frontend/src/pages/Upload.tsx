@@ -12,18 +12,24 @@ type ProfileUser = {
   handle?: string;
 };
 
+type MediaKind = "image" | "video" | null;
+
 export default function Upload() {
   const { user } = useAuth(); // logged-in user (or null)
 
   const [authorId, setAuthorId] = useState("");
   const [body, setBody] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
+  const [mediaDataUrl, setMediaDataUrl] = useState(""); // image or video as Data URL
+  const [mediaKind, setMediaKind] = useState<MediaKind>(null);
   const [anonymous, setAnonymous] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdId, setCreatedId] = useState<string | null>(null);
 
   const [profileUser, setProfileUser] = useState<ProfileUser | null>(null);
+
+  // key used to force-reset the file input
+  const [fileKey, setFileKey] = useState(0);
 
   // Prefer authUser.id for authorId; fall back to /api/auth/me
   useEffect(() => {
@@ -83,6 +89,50 @@ export default function Upload() {
     user?.name ||
     "user";
 
+  // Handle image/video file selection
+  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setError(null);
+    const file = e.target.files?.[0];
+    if (!file) {
+      setMediaDataUrl("");
+      setMediaKind(null);
+      return;
+    }
+
+    const isImage = file.type.startsWith("image/");
+    const isVideo = file.type.startsWith("video/");
+
+    if (!isImage && !isVideo) {
+      setError("Please select an image or video file.");
+      setMediaDataUrl("");
+      setMediaKind(null);
+      return;
+    }
+
+    // simple size cap (you can tweak this, maybe larger for video)
+    const maxBytes = 20 * 1024 * 1024; // 20 MB
+    if (file.size > maxBytes) {
+      setError("File is too large (max 20 MB). Please choose a smaller file.");
+      setMediaDataUrl("");
+      setMediaKind(null);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setMediaDataUrl(reader.result);
+        setMediaKind(isImage ? "image" : "video");
+      }
+    };
+    reader.onerror = () => {
+      setError("Failed to read file.");
+      setMediaDataUrl("");
+      setMediaKind(null);
+    };
+    reader.readAsDataURL(file);
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -93,33 +143,38 @@ export default function Upload() {
       return;
     }
 
+    if (!mediaDataUrl || !mediaKind) {
+      setError("Please select an image or video to upload.");
+      return;
+    }
+
     if (!body.trim()) {
       setError("Post text is required.");
       return;
     }
 
-    // 🔹 NEW: require an image URL
-    if (!imageUrl.trim()) {
-      setError("An image URL is required for posts right now.");
-      return;
-    }
-
     setSubmitting(true);
     try {
+      const payload: any = {
+        author_id: authorId || undefined,
+        // snapshot of current display name for this post
+        author_name: user && !anonymous ? postingName : undefined,
+        // if logged in, use checkbox; if not logged in, always anonymous
+        anonymous: user ? anonymous : true,
+        body: body.trim(),
+      };
+
+      if (mediaKind === "image") {
+        payload.image_url = mediaDataUrl;
+      } else if (mediaKind === "video") {
+        payload.video_url = mediaDataUrl;
+      }
+
       const res = await fetch("/api/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          author_id: authorId || undefined,
-          // 🔹 NEW: snapshot of current display name for this post
-          author_name:
-            user && !anonymous ? postingName : undefined,
-          // if logged in, use checkbox; if not logged in, always anonymous
-          anonymous: user ? anonymous : true,
-          body: body.trim(),
-          image_url: imageUrl.trim(), // guaranteed non-empty now
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -132,13 +187,26 @@ export default function Upload() {
 
       setCreatedId(id);
       setBody("");
-      setImageUrl("");
+      setMediaDataUrl("");
+      setMediaKind(null);
       setAnonymous(false);
+      // reset file input so filename disappears
+      setFileKey((k) => k + 1);
     } catch (err: any) {
       setError(err?.message || "Failed to create post.");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function onClear() {
+    setBody("");
+    setMediaDataUrl("");
+    setMediaKind(null);
+    setAnonymous(false);
+    setError(null);
+    setCreatedId(null);
+    setFileKey((k) => k + 1);
   }
 
   return (
@@ -165,29 +233,36 @@ export default function Upload() {
             )}
           </div>
 
+          {/* Media file upload (required) */}
           <div>
             <label className="mb-1 block text-sm font-medium text-neutral-700">
-              {/* 🔹 updated label to show it's required */}
-              Image URL <span className="text-red-500">*</span>
+              Image or video <span className="text-red-500">*</span>
             </label>
             <input
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="https://…"
-              className="w-full rounded-lg border border-neutral-300 px-3 py-2 outline-none focus:border-neutral-500"
+              key={fileKey} // forces input reset
+              type="file"
+              accept="image/*,video/*"
+              onChange={onFileChange}
+              className="block w-full text-sm text-neutral-700"
             />
-            {imageUrl.trim() ? (
+            {mediaDataUrl && mediaKind === "image" && (
               <div className="mt-3">
                 <img
-                  src={imageUrl}
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
-                  }}
+                  src={mediaDataUrl}
                   className="max-h-64 rounded-lg border border-neutral-200 object-cover"
                   alt="preview"
                 />
               </div>
-            ) : null}
+            )}
+            {mediaDataUrl && mediaKind === "video" && (
+              <div className="mt-3">
+                <video
+                  src={mediaDataUrl}
+                  controls
+                  className="max-h-64 rounded-lg border border-neutral-200 object-cover"
+                />
+              </div>
+            )}
           </div>
 
           <div>
@@ -198,7 +273,7 @@ export default function Upload() {
               value={body}
               onChange={(e) => setBody(e.target.value)}
               rows={4}
-              placeholder="Say something…"
+              placeholder="Describe the issue or your contribution…"
               className="w-full rounded-lg border border-neutral-300 px-3 py-2 outline-none focus:border-neutral-500"
             />
           </div>
@@ -235,7 +310,8 @@ export default function Upload() {
 
           {createdId && (
             <div className="rounded-lg border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-800">
-              Post created! ID: <code>{createdId}</code>. It will appear on Home.
+              Post created! ID: <code>{createdId}</code>. It will appear on
+              Home.
             </div>
           )}
 
@@ -249,11 +325,7 @@ export default function Upload() {
             </button>
             <button
               type="button"
-              onClick={() => {
-                setBody("");
-                setImageUrl("");
-                setAnonymous(false);
-              }}
+              onClick={onClear}
               className="rounded-lg border border-neutral-300 bg-white px-4 py-2"
             >
               Clear
