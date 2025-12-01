@@ -8,7 +8,7 @@ import { LogOut, Pencil } from "lucide-react";
 type User = {
   id: string;
   name: string;
-  username?: string;   // 👈 add this line
+  username?: string;
   handle?: string;
   school?: string;
   joinedAt?: string;
@@ -20,10 +20,10 @@ type User = {
   };
 };
 
-
 type Post = {
   id: string;
-  imageUrl: string;
+  mediaUrl: string;
+  mediaType: "image" | "video";
   alt?: string;
 };
 
@@ -68,7 +68,13 @@ type EditDialogProps = {
   onSubmit: (values: EditValues) => Promise<void>;
 };
 
-function EditDialog({ open, onClose, initial, saving, onSubmit }: EditDialogProps) {
+function EditDialog({
+  open,
+  onClose,
+  initial,
+  saving,
+  onSubmit,
+}: EditDialogProps) {
   const [values, setValues] = useState<EditValues>(initial);
 
   useEffect(() => {
@@ -77,7 +83,10 @@ function EditDialog({ open, onClose, initial, saving, onSubmit }: EditDialogProp
 
   if (!open) return null;
 
-  function handleChange<K extends keyof EditValues>(key: K, value: EditValues[K]) {
+  function handleChange<K extends keyof EditValues>(
+    key: K,
+    value: EditValues[K]
+  ) {
     setValues((prev) => ({ ...prev, [key]: value }));
   }
 
@@ -232,9 +241,7 @@ function EditDialog({ open, onClose, initial, saving, onSubmit }: EditDialogProp
               type="submit"
               className={classNames(
                 "rounded-lg px-4 py-2 text-sm font-medium text-white",
-                saving
-                  ? "bg-emerald-400"
-                  : "bg-emerald-600 hover:bg-emerald-700"
+                saving ? "bg-emerald-400" : "bg-emerald-600 hover:bg-emerald-700"
               )}
               disabled={saving}
             >
@@ -372,9 +379,7 @@ export default function Profile() {
         {/* Header */}
         <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
           <div>
-            <h1 className="text-2xl font-semibold text-neutral-900">
-              Profile
-            </h1>
+            <h1 className="text-2xl font-semibold text-neutral-900">Profile</h1>
             <p className="mt-1 text-sm text-neutral-600">
               Manage your Eco-Leveling presence.
             </p>
@@ -497,7 +502,7 @@ export default function Profile() {
 
               {posts.length === 0 ? (
                 <div className="flex min-h-[120px] items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-neutral-50 text-xs text-neutral-500">
-                  Your image posts will appear here.
+                  Your posts will appear here.
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
@@ -506,14 +511,31 @@ export default function Profile() {
                       key={post.id}
                       className="group relative aspect-square overflow-hidden rounded-xl bg-neutral-100"
                     >
-                      <img
-                        src={post.imageUrl}
-                        alt={post.alt || "Post"}
-                        className="h-full w-full object-cover transition group-hover:scale-105"
-                      />
+                      {post.mediaType === "video" ? (
+                        <video
+                          src={post.mediaUrl}
+                          className="h-full w-full object-cover"
+                          muted
+                          loop
+                          playsInline
+                        />
+                      ) : (
+                        <img
+                          src={post.mediaUrl}
+                          alt={post.alt || "Post"}
+                          className="h-full w-full object-cover transition group-hover:scale-105"
+                        />
+                      )}
+
                       {post.alt && (
                         <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2 text-[10px] text-white opacity-0 transition group-hover:opacity-100">
                           <p className="line-clamp-2">{post.alt}</p>
+                        </div>
+                      )}
+
+                      {post.mediaType === "video" && (
+                        <div className="pointer-events-none absolute left-1.5 top-1.5 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                          Video
                         </div>
                       )}
                     </div>

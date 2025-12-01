@@ -1,3 +1,4 @@
+// backend/src/modules/posts/index.ts
 import Elysia, { t } from "elysia";
 import { ObjectId } from "mongodb";
 import { database } from "../../db";
@@ -10,12 +11,16 @@ const hex24 = "^[a-fA-F0-9]{24}$";
 
 const PostBody = t.Object({
   body: t.String(),
+
+  // Frontend might send either of these:
   image_url: t.Optional(t.String()),
-  video_url: t.Optional(t.String()),   // 🔹 NEW
+  video_url: t.Optional(t.String()),
+
   // optional extra fields if frontend sends them
   likes: t.Optional(t.Number({ default: 0 })),
   comments: t.Optional(t.Number({ default: 0 })),
   shares: t.Optional(t.Number({ default: 0 })),
+
   author_id: t.Optional(t.String({ pattern: hex24 })),
   author_name: t.Optional(t.String()),
   anonymous: t.Optional(t.Boolean()),
@@ -23,20 +28,13 @@ const PostBody = t.Object({
 
 export const post = new Elysia({ prefix: "/posts" })
 
-  // CREATE
+  // ------------------------------
+  // CREATE POST
+  // ------------------------------
   .post(
     "",
     async (ctx) => {
       const { body, user, request } = ctx as any;
-
-      console.log(
-        "[post.create] ctx.user =",
-        user ? { _id: user._id?.toString(), name: user.name } : null,
-        " body.author_id =",
-        body.author_id,
-        " body.author_name =",
-        body.author_name
-      );
 
       // 1) Decide anonymity
       let anonymous: boolean = body.anonymous ?? !user;
@@ -68,12 +66,16 @@ export const post = new Elysia({ prefix: "/posts" })
         authorName = body.author_name ?? user?.name ?? null;
       }
 
+      // 4) Pick whichever media field the frontend sent (image or video)
+      const mediaUrl: string | null =
+        body.image_url ?? body.video_url ?? null;
+
       const doc: any = {
         author_name: authorName,
         anonymous,
         body: body.body,
-        image_url: body.image_url ?? null,
-        video_url: body.video_url ?? null,   // 🔹 NEW
+        // We always store under `image_url` so the rest of the app keeps working
+        image_url: mediaUrl,
         likes: body.likes ?? 0,
         comments: body.comments ?? 0,
         shares: body.shares ?? 0,
@@ -113,7 +115,9 @@ export const post = new Elysia({ prefix: "/posts" })
     { body: PostBody }
   )
 
-  // READ ONE
+  // ------------------------------
+  // READ ONE POST
+  // ------------------------------
   .get(
     "/:id",
     async ({ params }) => {
@@ -127,7 +131,9 @@ export const post = new Elysia({ prefix: "/posts" })
     { params: t.Object({ id: t.String({ pattern: hex24 }) }) }
   )
 
-  // LIST ALL (feed)
+  // ------------------------------
+  // LIST ALL POSTS (feed)
+  // ------------------------------
   .get("/", async () => {
     const items = await posts.find({}, { sort: { createdAt: -1 } }).toArray();
     return items.map((p: any) => ({
@@ -135,8 +141,8 @@ export const post = new Elysia({ prefix: "/posts" })
       author_name: p.author_name,
       anonymous: !!p.anonymous,
       body: p.body,
+      // may be image or video data URL (frontend decides how to render)
       image_url: p.image_url ?? null,
-      video_url: p.video_url ?? null,       // 🔹 NEW
       likes: p.likes ?? 0,
       comments: p.comments ?? 0,
       shares: p.shares ?? 0,
@@ -145,18 +151,22 @@ export const post = new Elysia({ prefix: "/posts" })
     }));
   })
 
-  // UPDATE
+  // ------------------------------
+  // UPDATE POST
+  // ------------------------------
   .patch(
     "/:id",
     async ({ params, body }) => {
       const update: Record<string, unknown> = {};
 
       if (body.image_url !== undefined) update.image_url = body.image_url;
-      if (body.video_url !== undefined) update.video_url = body.video_url; // 🔹 NEW
       if (body.body !== undefined) update.body = body.body;
       if (body.likes !== undefined) update.likes = body.likes;
       if (body.comments !== undefined) update.comments = body.comments;
       if (body.shares !== undefined) update.shares = body.shares;
+
+      // If you ever want to allow PATCH with `video_url`,
+      // you could do: if (body.video_url !== undefined) update.image_url = body.video_url;
 
       if (!Object.keys(update).length) {
         return { matched: 0, modified: 0 };
@@ -175,7 +185,9 @@ export const post = new Elysia({ prefix: "/posts" })
     }
   )
 
-  // DELETE
+  // ------------------------------
+  // DELETE POST
+  // ------------------------------
   .delete(
     "/:id",
     async ({ params }) => {

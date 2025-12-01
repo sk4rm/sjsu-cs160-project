@@ -8,8 +8,8 @@ export type ApiPost = {
   anonymous?: boolean;
   author_id?: string;
   body: string;
-  image_url?: string | null;
-  video_url?: string | null;   // 🔹 NEW
+  image_url?: string | null;   // may hold image OR video data URL
+  video_url?: string | null;   // older / future usage
   likes?: number;
   comments?: number;
   shares?: number;
@@ -35,23 +35,36 @@ export default function PostCard({ post }: { post: ApiPost }) {
   const created =
     post.createdAt ? new Date(post.createdAt).toLocaleString() : "";
 
-  // Decide what media to show:
-  const hasImage = !!post.image_url;
-  const hasVideo = !!post.video_url;
+  // --- MEDIA DECISION LOGIC ---
+  // Backend always stores media in image_url, but we also
+  // respect video_url if it ever shows up.
+  const mediaUrl: string | null =
+    (post.image_url as string | null | undefined) ??
+    (post.video_url as string | null | undefined) ??
+    null;
+
+  let mediaType: "image" | "video" | null = null;
+  if (typeof mediaUrl === "string" && mediaUrl.length > 0) {
+    if (mediaUrl.startsWith("data:video/") || mediaUrl.endsWith(".webm")) {
+      mediaType = "video";
+    } else {
+      mediaType = "image";
+    }
+  }
 
   return (
     <article className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
       {/* Media (image or video) */}
       <div className="aspect-[16/10] w-full overflow-hidden bg-neutral-100">
-        {hasImage ? (
+        {mediaType === "image" && mediaUrl ? (
           <img
-            src={post.image_url as string}
+            src={mediaUrl}
             alt=""
             className="h-full w-full object-cover"
           />
-        ) : hasVideo ? (
+        ) : mediaType === "video" && mediaUrl ? (
           <video
-            src={post.video_url as string}
+            src={mediaUrl}
             controls
             className="h-full w-full object-cover"
           />

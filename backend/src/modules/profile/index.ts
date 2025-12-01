@@ -5,7 +5,7 @@ import { database } from "../../db";
 
 const usersCollection = database.collection("users");
 const postsCollection = database.collection("posts");
-const commentsCollection = database.collection("comments"); // ⬅️ NEW
+const commentsCollection = database.collection("comments"); // comments for name-cascade
 
 // NOTE: For these profile routes, we rely on userId
 // sent from the frontend instead of cookies/session.
@@ -236,19 +236,48 @@ export const profile = new Elysia({ prefix: "/users" })
 
       const userObjectId = new ObjectId(userId);
 
+      // Look up the user so we can also match legacy posts
+      // that only have author_name saved.
+      const userDoc = await usersCollection.findOne({ _id: userObjectId });
+
+      const nameCandidates: string[] = [];
+      if (userDoc?.name) nameCandidates.push(userDoc.name);
+      if ((userDoc as any)?.username)
+        nameCandidates.push((userDoc as any).username);
+
+      const filter =
+        nameCandidates.length > 0
+          ? {
+              $or: [
+                { author_id: userObjectId },              // normal case
+                { author_name: { $in: nameCandidates } }, // legacy / no author_id
+              ],
+            }
+          : { author_id: userObjectId };
+
       const docs = await postsCollection
-        .find({ author_id: userObjectId })
+        .find(filter)
         .project({ image_url: 1, body: 1 })
         .sort({ createdAt: -1 })
         .toArray();
 
       return docs
         .filter((p: any) => p.image_url)
-        .map((p: any) => ({
-          id: p._id.toString(),
-          imageUrl: p.image_url as string,
-          alt: (p.body as string | undefined) ?? "",
-        }));
+        .map((p: any) => {
+          const url = p.image_url as string;
+
+          let mediaType: "image" | "video" = "image";
+          if (typeof url === "string" && url.startsWith("data:video/")) {
+            mediaType = "video";
+          }
+
+          return {
+            id: p._id.toString(),
+            mediaUrl: url,
+            mediaType,
+            alt: (p.body as string | undefined) ?? "",
+          };
+        });
     },
     {
       query: t.Object({
