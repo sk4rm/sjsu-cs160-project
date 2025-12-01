@@ -5,14 +5,13 @@ import { cors } from "@elysiajs/cors";
 
 import { auth } from "./modules/auth";
 import { user } from "./modules/user";
-import { leaderboard } from "./modules/user/leaderboard"; // public
+import { leaderboard } from "./modules/user/leaderboard";
 import { post } from "./modules/posts";
 import { commentsModule } from "./modules/comment";
 import { currentUser } from "./plugins/currentUser";
-import { profile } from "./modules/profile"; // 👈 NEW: profile routes (/users/me, etc.)
+import { profile } from "./modules/profile";
 
 const app = new Elysia()
-  .use(currentUser)
   .use(staticPlugin())
   .use(
     cors({
@@ -27,21 +26,15 @@ const app = new Elysia()
   )
   .get("/favicon.ico", () => file("favicon.ico"));
 
-// --------------------
-// ✅ PUBLIC ROUTES
-// --------------------
-app.group("/api", (api) => api.use(leaderboard)); // /api/leaderboard
-
-// --------------------
-// 🔒 PROTECTED + OPTIONAL-USER ROUTES
-// --------------------
 app.group("/api", (api) =>
   api
-    .use(auth)           // /api/auth/*
-    .use(user)           // /api/users/* (signup/login/etc.)
-    .use(profile)        // /api/users/me, /api/users/me/posts
-    .use(post)           // /api/posts/*
-    .use(commentsModule) // /api/comments/*
+    .use(currentUser)
+    .use(leaderboard)
+    .use(auth)
+    .use(user)
+    .use(profile)
+    .use(post)
+    .use(commentsModule)
 );
 
 app.listen(3000);

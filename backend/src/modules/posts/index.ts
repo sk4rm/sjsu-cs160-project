@@ -29,32 +29,32 @@ const PostBody = t.Object({
   anonymous: t.Optional(t.Boolean()),
 });
 
-// Helper: verify JWT cookie and ensure this user is a moderator
-async function requireModerator(ctx: any) {
+// ------------------------------
+// Helpers for auth via JWT cookie
+// ------------------------------
+async function requireUser(ctx: any) {
   const { jwt, cookie } = ctx;
-
   const token = cookie?.auth?.value as string | undefined;
-  if (!token) {
-    return null;
-  }
+  if (!token) return null;
 
-  let payload: any;
   try {
-    payload = await jwt.verify(token);
+    const payload = await jwt.verify(token);
+    const userId = (payload as any)?.sub as string | undefined;
+    if (!userId) return null;
+
+    const user = await users.findOne({ _id: new ObjectId(userId) });
+    if (!user) return null;
+
+    return user;
   } catch {
     return null;
   }
+}
 
-  const userId = payload?.sub as string | undefined;
-  if (!userId) {
-    return null;
-  }
-
-  const user = await users.findOne({ _id: new ObjectId(userId) });
-  if (!user || !user.is_moderator) {
-    return null;
-  }
-
+// Helper: verify JWT cookie and ensure this user is a moderator
+async function requireModerator(ctx: any) {
+  const user = await requireUser(ctx);
+  if (!user || !user.is_moderator) return null;
   return user;
 }
 
@@ -78,7 +78,7 @@ export const post = new Elysia({ prefix: "/posts" })
       // Anonymity is controlled by the checkbox / whether user exists on frontend.
       const anonymous: boolean = body.anonymous ?? true;
 
-      // 2) Decide author name – prefer DB lookup using author_id
+      // Decide author name – prefer DB lookup using author_id
       let authorName: string | null = null;
 
       if (body.author_id) {
@@ -100,15 +100,15 @@ export const post = new Elysia({ prefix: "/posts" })
         }
       }
 
-      // 3) Fallback name if not anonymous and no DB name was found
+      // Fallback name if not anonymous and no DB name was found
       if (!authorName && !anonymous) {
         authorName = body.author_name ?? null;
       }
 
-      // 4) Pick whichever media field the frontend sent (image or video)
+      // Pick whichever media field the frontend sent (image or video)
       const mediaUrl: string | null = body.image_url ?? body.video_url ?? null;
 
-      // 🔥 All new posts start as "pending"
+      // All new posts start as "pending"
       const status: PostStatus = "pending";
 
       const doc: any = {
@@ -166,7 +166,7 @@ export const post = new Elysia({ prefix: "/posts" })
   // LIST PENDING POSTS (Moderator)
   // ------------------------------
   .get("/moderation", async (ctx) => {
-    // 🔒 Only moderators can see this list
+    // Only moderators can see this list
     const modUser = await requireModerator(ctx as any);
     if (!modUser) {
       return new Response("Forbidden", { status: 403 });
@@ -267,6 +267,81 @@ export const post = new Elysia({ prefix: "/posts" })
   )
 
   // ------------------------------
+  // TOGGLE LIKE (logged-in users only)
+  // ------------------------------
+  .post(
+    "/:id/like",
+    async (ctx) => {
+      const { params } = ctx as any;
+
+      const authUser = await requireUser(ctx as any);
+      if (!authUser) {
+        return new Response("Unauthorized", { status: 401 });
+      }
+
+      const _id = new ObjectId(params.id);
+      const userId = authUser._id as ObjectId;
+
+      // Have they already liked this post?
+      const already = await posts.findOne(
+        { _id, liked_by: userId } as any
+      );
+
+      let liked = false;
+
+      if (already) {
+        // toggle OFF
+        await posts.updateOne(
+          { _id },
+          {
+            $inc: { likes: -1 },
+            $pull: { liked_by: userId },
+          } as any
+        );
+        liked = false;
+
+        // decrement author points
+        const postDoc = await posts.findOne({ _id });
+        if (postDoc?.author_id) {
+          await users.updateOne(
+            { _id: postDoc.author_id as ObjectId },
+            { $inc: { points: -1 } }
+          );
+        }
+      } else {
+        // toggle ON
+        await posts.updateOne(
+          { _id },
+          {
+            $inc: { likes: 1 },
+            $addToSet: { liked_by: userId },
+          } as any
+        );
+        liked = true;
+
+        // increment author points
+        const postDoc = await posts.findOne({ _id });
+        if (postDoc?.author_id) {
+          await users.updateOne(
+            { _id: postDoc.author_id as ObjectId },
+            { $inc: { points: 1 } }
+          );
+        }
+      }
+
+      const updated = await posts.findOne({ _id });
+
+      return {
+        liked,
+        likes: (updated as any)?.likes ?? 0,
+      };
+    },
+    {
+      params: t.Object({ id: t.String({ pattern: hex24 }) }),
+    }
+  )
+
+  // ------------------------------
   // READ ONE POST
   // ------------------------------
   .get(
@@ -290,7 +365,7 @@ export const post = new Elysia({ prefix: "/posts" })
   // LIST ALL POSTS (feed)
   // ------------------------------
   .get("/", async () => {
-    // 🔥 Only show approved posts by default.
+    // Only show approved posts by default.
     // Treat old posts with no status as approved.
     const items = await posts
       .find(

@@ -22,7 +22,11 @@ export default function PostCard({ post }: { post: ApiPost }) {
     post.comments ?? 0
   );
 
-  const likeCount = post.likes ?? 0;
+  // ⭐ NEW: like state
+  const [likeCount, setLikeCount] = useState<number>(post.likes ?? 0);
+  const [isLiked, setIsLiked] = useState<boolean>(false); // we don't know initial liked state yet
+  const [isLiking, setIsLiking] = useState<boolean>(false);
+
   const shareCount = post.shares ?? 0;
 
   const baseAuthorLabel = post.anonymous
@@ -49,6 +53,31 @@ export default function PostCard({ post }: { post: ApiPost }) {
       mediaType = "video";
     } else {
       mediaType = "image";
+    }
+  }
+
+  // ⭐ NEW: toggle like
+  async function handleToggleLike() {
+    if (isLiking) return;
+    setIsLiking(true);
+    try {
+      const res = await fetch(`/api/posts/${post._id}/like`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        console.error("Failed to toggle like", res.status);
+        return;
+      }
+
+      const data = await res.json(); // { liked, likes }
+      setIsLiked(!!data.liked);
+      setLikeCount(typeof data.likes === "number" ? data.likes : likeCount);
+    } catch (err) {
+      console.error("Error toggling like", err);
+    } finally {
+      setIsLiking(false);
     }
   }
 
@@ -95,8 +124,24 @@ export default function PostCard({ post }: { post: ApiPost }) {
         {/* Actions */}
         <div className="mt-2 flex items-center justify-between text-neutral-700">
           <div className="flex items-center gap-5 text-sm">
-            <span>❤️ {likeCount}</span>
+            {/* ⭐ Like button */}
+            <button
+              type="button"
+              onClick={handleToggleLike}
+              disabled={isLiking}
+              className="flex items-center gap-1 hover:underline disabled:opacity-60"
+            >
+              <span className="text-lg">
+                {isLiked ? (
+                  <span className="text-red-500">❤️</span>   // filled red
+                ) : (
+                  <span className="text-neutral-400">🩶</span> // empty grey
+                )}
+              </span>
+              <span>{likeCount}</span>
+            </button>
 
+            {/* Comments */}
             <button
               type="button"
               onClick={() => setOpen((o) => !o)}
@@ -106,6 +151,7 @@ export default function PostCard({ post }: { post: ApiPost }) {
               💬 {commentCount}
             </button>
 
+            {/* Shares (display only for now) */}
             <span>🔗 {shareCount}</span>
           </div>
 
