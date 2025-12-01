@@ -1,3 +1,4 @@
+// frontend/src/pages/Upload.tsx
 import { useEffect, useState } from "react";
 import { useAuth } from "../Context/AuthContext";
 
@@ -109,7 +110,6 @@ export default function Upload() {
       return;
     }
 
-    // simple size cap (you can tweak this, maybe larger for video)
     const maxBytes = 20 * 1024 * 1024; // 20 MB
     if (file.size > maxBytes) {
       setError("File is too large (max 20 MB). Please choose a smaller file.");
@@ -157,9 +157,7 @@ export default function Upload() {
     try {
       const payload: any = {
         author_id: authorId || undefined,
-        // snapshot of current display name for this post
         author_name: user && !anonymous ? postingName : undefined,
-        // if logged in, use checkbox; if not logged in, always anonymous
         anonymous: user ? anonymous : true,
         body: body.trim(),
       };
@@ -182,7 +180,7 @@ export default function Upload() {
         throw new Error(t || `Request failed (${res.status})`);
       }
 
-      const json = await res.json(); // { id } or { insertedId }
+      const json = await res.json(); // { id, status, message }
       const id = json?.insertedId || json?.id || null;
 
       setCreatedId(id);
@@ -190,7 +188,6 @@ export default function Upload() {
       setMediaDataUrl("");
       setMediaKind(null);
       setAnonymous(false);
-      // reset file input so filename disappears
       setFileKey((k) => k + 1);
     } catch (err: any) {
       setError(err?.message || "Failed to create post.");
@@ -239,7 +236,7 @@ export default function Upload() {
               Image or video <span className="text-red-500">*</span>
             </label>
             <input
-              key={fileKey} // forces input reset
+              key={fileKey}
               type="file"
               accept="image/*,video/*"
               onChange={onFileChange}
@@ -311,7 +308,7 @@ export default function Upload() {
           {createdId && (
             <div className="rounded-lg border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-800">
               Post created! ID: <code>{createdId}</code>. It will appear on
-              Home.
+              Home after a moderator approves it.
             </div>
           )}
 

@@ -1,8 +1,13 @@
+// backend/src/modules/auth/index.ts
 import Elysia, { status } from "elysia";
 import { jwt } from "@elysiajs/jwt";
+import { ObjectId } from "mongodb";
+import { database } from "../../db";
 
 import { Auth } from "./service";
 import { AuthModel } from "./model";
+
+const users = database.collection("users");
 
 export const auth = new Elysia({ prefix: "/auth" })
   .use(
@@ -44,10 +49,15 @@ export const auth = new Elysia({ prefix: "/auth" })
         value: token,
         httpOnly: true,
         maxAge: 60 * 60 * 24, // 1 day
-        path: "/",            // ⬅️ make cookie visible to all routes
+        path: "/",            // cookie visible to all routes
         sameSite: "lax",
         secure: false,        // keep false for http://localhost
       });
+
+      console.log(
+        "[auth.login] set auth cookie token (first 20 chars):",
+        token.slice(0, 20)
+      );
 
       return response;
     },
@@ -63,18 +73,45 @@ export const auth = new Elysia({ prefix: "/auth" })
   // -----------------------------
   // ME (current logged-in user)
   // -----------------------------
-  .get("/me", (ctx) => {
-    const { user } = ctx as any;
+  .get(
+    "/me",
+    async ({ jwt, cookie }) => {
+      // 1) Read auth cookie
+      const token = cookie?.auth?.value as string | undefined;
+      if (!token) {
+        throw status(401, { message: "Not logged in" });
+      }
 
-    if (!user) {
-      throw status(401, { message: "Not logged in" });
+      // 2) Verify JWT and extract user id
+      let payload: any;
+      try {
+        payload = await jwt.verify(token);
+      } catch {
+        throw status(401, { message: "Not logged in" });
+      }
+
+      const userId = payload?.sub as string | undefined;
+      if (!userId) {
+        throw status(401, { message: "Not logged in" });
+      }
+
+      // 3) Load user from DB
+      const user = await users.findOne({ _id: new ObjectId(userId) });
+      if (!user) {
+        throw status(401, { message: "Not logged in" });
+      }
+
+      const isMod = user.is_moderator ?? false;
+
+      // 4) Return shape that frontend AuthContext can use
+      return {
+        id: user._id.toString(),
+        _id: user._id.toString(),
+        name: user.name,
+        profile_pic_url: user.profile_pic_url ?? null,
+        points: user.points ?? 0,
+        is_moderator: isMod,
+        isModerator: isMod,
+      };
     }
-
-    return {
-      _id: user._id.toString(),
-      name: user.name,
-      profile_pic_url: user.profile_pic_url ?? null,
-      points: user.points ?? 0,
-      is_moderator: user.is_moderator ?? false,
-    };
-  });
+  );

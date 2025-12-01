@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ShieldCheck,
@@ -11,60 +11,17 @@ import {
 import { useAuth } from "../Context/AuthContext";
 
 type PendingPost = {
-  id: string;
-  imageUrl: string;
-  authorName: string;
-  authorHandle: string;
-  authorAvatar?: string;
-  title: string;
-  caption: string;
-  university: string;
-  submittedAgo: string;
+  _id: string;
+  author_name?: string | null;
+  anonymous?: boolean;
+  body: string;
+  image_url?: string | null;
+  likes?: number;
+  comments?: number;
+  shares?: number;
+  createdAt?: string | Date;
+  status?: "pending" | "approved" | "declined" | string;
 };
-
-// TODO: replace with real data from your backend
-const mockPendingPosts: PendingPost[] = [
-  {
-    id: "1",
-    imageUrl:
-      "https://images.unsplash.com/photo-1582401655777-990d6c0e732a?auto=format&fit=crop&w=1200&q=80",
-    authorName: "David Lee",
-    authorHandle: "@davidshoots",
-    authorAvatar:
-      "https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=200&q=80",
-    title: "Campus Garden Blooms",
-    caption: "Beautiful flowers blooming in the university quad garden.",
-    university: "Stanford University",
-    submittedAgo: "10 minutes ago",
-  },
-  {
-    id: "2",
-    imageUrl:
-      "https://images.unsplash.com/photo-1518837695005-2083093ee35b?auto=format&fit=crop&w=1200&q=80",
-    authorName: "Rachel Park",
-    authorHandle: "@rachel_captures",
-    authorAvatar:
-      "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=200&q=80",
-    title: "Autumn Campus Walk",
-    caption:
-      "The trees along the main pathway turning golden and orange.",
-    university: "University of Michigan",
-    submittedAgo: "25 minutes ago",
-  },
-  {
-    id: "3",
-    imageUrl:
-      "https://images.unsplash.com/photo-1444464666168-49d633b86797?auto=format&fit=crop&w=1200&q=80",
-    authorName: "James Kim",
-    authorHandle: "@kim_nature",
-    authorAvatar:
-      "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80",
-    title: "Campus Wildlife",
-    caption: "A robin perched on the fountain near the library.",
-    university: "Yale University",
-    submittedAgo: "1 hour ago",
-  },
-];
 
 function StatCard({
   icon,
@@ -90,9 +47,34 @@ function StatCard({
   );
 }
 
+function formatRelativeTime(date: Date | null): string {
+  if (!date) return "";
+  const now = new Date().getTime();
+  const t = date.getTime();
+  const diffMs = now - t;
+
+  const minutes = Math.floor(diffMs / (1000 * 60));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
 export default function Moderator() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+
+  const [pendingPosts, setPendingPosts] = useState<PendingPost[]>([]);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(true);
+  const [moderatingId, setModeratingId] = useState<string | null>(null);
+
+  // NEW: local counters for this session
+  const [approvedToday, setApprovedToday] = useState(0);
+  const [declinedToday, setDeclinedToday] = useState(0);
 
   // 🚫 Protect route: only moderators allowed
   useEffect(() => {
@@ -101,14 +83,81 @@ export default function Moderator() {
     }
   }, [user, loading, navigate]);
 
+  // Fetch pending posts from backend
+  useEffect(() => {
+    async function fetchPending() {
+      try {
+        setIsLoadingPosts(true);
+        const res = await fetch("/api/posts/moderation", {
+          credentials: "include",
+        });
+
+        if (!res.ok) {
+          // if forbidden, just bounce out
+          if (res.status === 403) {
+            navigate("/");
+            return;
+          }
+          console.error("Failed to fetch pending posts", res.status);
+          return;
+        }
+
+        const data = (await res.json()) as PendingPost[];
+        setPendingPosts(data);
+      } catch (err) {
+        console.error("Error fetching pending posts", err);
+      } finally {
+        setIsLoadingPosts(false);
+      }
+    }
+
+    if (user && user.isModerator) {
+      fetchPending();
+    }
+  }, [user, navigate]);
+
+  async function handleModerate(
+    id: string,
+    decision: "approve" | "decline"
+  ) {
+    try {
+      setModeratingId(id);
+      const res = await fetch(`/api/posts/${id}/moderate`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ decision }),
+      });
+
+      if (!res.ok) {
+        console.error("Failed to moderate post", res.status);
+        return;
+      }
+
+      // Remove from list on success
+      setPendingPosts((prev) => prev.filter((p) => p._id !== id));
+
+      // 🔢 bump local stats
+      if (decision === "approve") {
+        setApprovedToday((n) => n + 1);
+      } else {
+        setDeclinedToday((n) => n + 1);
+      }
+    } catch (err) {
+      console.error("Error moderating post", err);
+    } finally {
+      setModeratingId(null);
+    }
+  }
+
   if (!user || !user.isModerator) {
     // while redirecting or if not allowed, don't flash content
     return null;
   }
 
-  const pendingCount = mockPendingPosts.length;
-  const approvedToday = 0; // TODO from backend
-  const declinedToday = 0; // TODO from backend
+  const pendingCount = pendingPosts.length;
 
   return (
     <div className="flex flex-col gap-6">
@@ -152,89 +201,123 @@ export default function Moderator() {
           </span>
         </div>
 
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {mockPendingPosts.map((post) => (
-            <article
-              key={post.id}
-              className="flex flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm"
-            >
-              {/* Image */}
-              <div className="aspect-[4/3] w-full overflow-hidden bg-neutral-100">
-                <img
-                  src={post.imageUrl}
-                  alt={post.title}
-                  className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
-                />
-              </div>
+        {isLoadingPosts ? (
+          <div className="text-sm text-neutral-500">Loading pending posts…</div>
+        ) : pendingCount === 0 ? (
+          <div className="text-sm text-neutral-500">
+            No posts are waiting for review right now 🎉
+          </div>
+        ) : (
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {pendingPosts.map((post) => {
+              const authorLabel = post.anonymous
+                ? "Anonymous"
+                : post.author_name || "Unnamed User";
+              const authorInitial =
+                authorLabel[0]?.toUpperCase() ?? "U";
+              const createdDate = post.createdAt
+                ? new Date(post.createdAt)
+                : null;
 
-              {/* Content */}
-              <div className="flex flex-1 flex-col gap-4 p-4">
-                {/* Author */}
-                <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 overflow-hidden rounded-full bg-neutral-200">
-                    {post.authorAvatar ? (
+              const submittedAgo = createdDate
+                ? formatRelativeTime(createdDate)
+                : "";
+
+              return (
+                <article
+                  key={post._id}
+                  className="flex flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm"
+                >
+                  {/* Image */}
+                  <div className="aspect-[4/3] w-full overflow-hidden bg-neutral-100">
+                    {post.image_url ? (
                       <img
-                        src={post.authorAvatar}
-                        alt={post.authorName}
-                        className="h-full w-full object-cover"
+                        src={post.image_url}
+                        alt={post.body.slice(0, 40)}
+                        className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
                       />
-                    ) : null}
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-xs text-neutral-400">
+                        No media
+                      </div>
+                    )}
                   </div>
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium text-neutral-900">
-                      {post.authorName}
-                    </span>
-                    <span className="text-xs text-neutral-500">
-                      {post.authorHandle}
-                    </span>
-                  </div>
-                </div>
 
-                {/* Title & caption */}
-                <div className="space-y-1">
-                  <h3 className="text-sm font-semibold text-neutral-900">
-                    {post.title}
-                  </h3>
-                  <p className="text-xs text-neutral-600">{post.caption}</p>
-                </div>
+                  {/* Content */}
+                  <div className="flex flex-1 flex-col gap-4 p-4">
+                    {/* Author */}
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-neutral-200">
+                        <span className="text-sm font-medium text-neutral-700">
+                          {authorInitial}
+                        </span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-neutral-900">
+                          {authorLabel}
+                        </span>
+                        {submittedAgo && (
+                          <span className="text-xs text-neutral-500">
+                            Submitted {submittedAgo}
+                          </span>
+                        )}
+                      </div>
+                    </div>
 
-                {/* Meta */}
-                <div className="space-y-1 text-xs text-neutral-500">
-                  <div className="flex items-center gap-1.5">
-                    <MapPin className="h-3 w-3" />
-                    <span>{post.university}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Clock3 className="h-3 w-3" />
-                    <span>Submitted {post.submittedAgo}</span>
-                  </div>
-                </div>
+                    {/* Body */}
+                    <div className="space-y-1">
+                      <p className="text-sm text-neutral-700">
+                        {post.body}
+                      </p>
+                    </div>
 
-                {/* Actions */}
-                <div className="mt-auto flex gap-3 pt-1">
-                  <button
-                    className="flex-1 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-100"
-                    onClick={() => {
-                      // TODO: call backend to decline
-                      console.log("Decline", post.id);
-                    }}
-                  >
-                    Decline
-                  </button>
-                  <button
-                    className="flex-1 rounded-full border border-emerald-500 bg-emerald-500 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-emerald-600"
-                    onClick={() => {
-                      // TODO: call backend to approve
-                      console.log("Approve", post.id);
-                    }}
-                  >
-                    Approve
-                  </button>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
+                    {/* Meta (placeholder university, since backend doesn't have it) */}
+                    <div className="space-y-1 text-xs text-neutral-500">
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="h-3 w-3" />
+                        <span>EcoLeveling campus</span>
+                      </div>
+                      {createdDate && (
+                        <div className="flex items-center gap-1.5">
+                          <Clock3 className="h-3 w-3" />
+                          <span>{createdDate.toLocaleString()}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="mt-auto flex gap-3 pt-1">
+                      <button
+                        className="flex-1 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-100 disabled:opacity-60"
+                        onClick={() =>
+                          handleModerate(post._id, "decline")
+                        }
+                        disabled={moderatingId === post._id}
+                      >
+                        {moderatingId === post._id &&
+                        user.isModerator
+                          ? "Declining..."
+                          : "Decline"}
+                      </button>
+                      <button
+                        className="flex-1 rounded-full border border-emerald-500 bg-emerald-500 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-emerald-600 disabled:opacity-60"
+                        onClick={() =>
+                          handleModerate(post._id, "approve")
+                        }
+                        disabled={moderatingId === post._id}
+                      >
+                        {moderatingId === post._id &&
+                        user.isModerator
+                          ? "Approving..."
+                          : "Approve"}
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
       </section>
     </div>
   );
