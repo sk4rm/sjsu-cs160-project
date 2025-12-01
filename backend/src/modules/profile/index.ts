@@ -220,7 +220,7 @@ export const profile = new Elysia({ prefix: "/users" })
     }
   )
 
-  // -----------------------------------
+    // -----------------------------------
   // GET /users/me/posts – posts by user
   // -----------------------------------
   .get(
@@ -236,31 +236,12 @@ export const profile = new Elysia({ prefix: "/users" })
 
       const userObjectId = new ObjectId(userId);
 
-      // Look up the user so we can also match legacy posts
-      // that only have author_name saved.
-      const userDoc = await usersCollection.findOne({ _id: userObjectId });
-
-      const nameCandidates: string[] = [];
-      if (userDoc?.name) nameCandidates.push(userDoc.name);
-      if ((userDoc as any)?.username)
-        nameCandidates.push((userDoc as any).username);
-
-      const authorFilter =
-        nameCandidates.length > 0
-          ? {
-              $or: [
-                { author_id: userObjectId }, // normal case
-                { author_name: { $in: nameCandidates } }, // legacy / no author_id
-              ],
-            }
-          : { author_id: userObjectId };
-
-      // Only approved (or legacy with no status), same as main feed
-      const statusFilter = {
+      // ✅ Strict: only posts where author_id is this user
+      // ✅ Only approved (or legacy with no status)
+      const filter = {
+        author_id: userObjectId,
         $or: [{ status: "approved" }, { status: { $exists: false } }],
-      };
-
-      const filter = { ...(authorFilter as any), ...(statusFilter as any) };
+      } as any;
 
       const docs = await postsCollection
         .find(filter)
@@ -292,3 +273,4 @@ export const profile = new Elysia({ prefix: "/users" })
       }),
     }
   );
+

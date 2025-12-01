@@ -15,7 +15,7 @@ type PendingPost = {
   author_name?: string | null;
   anonymous?: boolean;
   body: string;
-  image_url?: string | null;
+  image_url?: string | null; // may contain image OR video
   likes?: number;
   comments?: number;
   shares?: number;
@@ -72,11 +72,11 @@ export default function Moderator() {
   const [isLoadingPosts, setIsLoadingPosts] = useState(true);
   const [moderatingId, setModeratingId] = useState<string | null>(null);
 
-  // NEW: local counters for this session
+  // local counters for this session
   const [approvedToday, setApprovedToday] = useState(0);
   const [declinedToday, setDeclinedToday] = useState(0);
 
-  // 🚫 Protect route: only moderators allowed
+  // Protect route: only moderators allowed
   useEffect(() => {
     if (!loading && (!user || !user.isModerator)) {
       navigate("/"); // or /login
@@ -93,7 +93,6 @@ export default function Moderator() {
         });
 
         if (!res.ok) {
-          // if forbidden, just bounce out
           if (res.status === 403) {
             navigate("/");
             return;
@@ -139,7 +138,6 @@ export default function Moderator() {
       // Remove from list on success
       setPendingPosts((prev) => prev.filter((p) => p._id !== id));
 
-      // 🔢 bump local stats
       if (decision === "approve") {
         setApprovedToday((n) => n + 1);
       } else {
@@ -223,19 +221,36 @@ export default function Moderator() {
                 ? formatRelativeTime(createdDate)
                 : "";
 
+              // 🔥 NEW: figure out if this pending post media is an image or video
+              const mediaUrl = post.image_url ?? null;
+              const isVideo =
+                !!mediaUrl &&
+                (mediaUrl.startsWith("data:video/") ||
+                  mediaUrl.endsWith(".webm") ||
+                  mediaUrl.endsWith(".mp4") ||
+                  mediaUrl.endsWith(".mov"));
+
               return (
                 <article
                   key={post._id}
                   className="flex flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm"
                 >
-                  {/* Image */}
+                  {/* Media (image or video) */}
                   <div className="aspect-[4/3] w-full overflow-hidden bg-neutral-100">
-                    {post.image_url ? (
-                      <img
-                        src={post.image_url}
-                        alt={post.body.slice(0, 40)}
-                        className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
-                      />
+                    {mediaUrl ? (
+                      isVideo ? (
+                        <video
+                          src={mediaUrl}
+                          controls
+                          className="h-full w-full object-cover bg-black"
+                        />
+                      ) : (
+                        <img
+                          src={mediaUrl}
+                          alt={post.body.slice(0, 40)}
+                          className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+                        />
+                      )
                     ) : (
                       <div className="flex h-full w-full items-center justify-center text-xs text-neutral-400">
                         No media
@@ -294,8 +309,7 @@ export default function Moderator() {
                         }
                         disabled={moderatingId === post._id}
                       >
-                        {moderatingId === post._id &&
-                        user.isModerator
+                        {moderatingId === post._id && user.isModerator
                           ? "Declining..."
                           : "Decline"}
                       </button>
@@ -306,8 +320,7 @@ export default function Moderator() {
                         }
                         disabled={moderatingId === post._id}
                       >
-                        {moderatingId === post._id &&
-                        user.isModerator
+                        {moderatingId === post._id && user.isModerator
                           ? "Approving..."
                           : "Approve"}
                       </button>

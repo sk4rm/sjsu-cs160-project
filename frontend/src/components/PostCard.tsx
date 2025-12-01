@@ -35,13 +35,13 @@ export default function PostCard({
     post.comments ?? 0
   );
 
-  // like state
   const [likeCount, setLikeCount] = useState<number>(post.likes ?? 0);
   const [isLiked, setIsLiked] = useState<boolean>(!!post.liked);
   const [isLiking, setIsLiking] = useState<boolean>(false);
 
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // --------------- Author display ---------------
   const baseAuthorLabel = post.anonymous
     ? "Anonymous"
     : post.author_name ??
@@ -52,7 +52,7 @@ export default function PostCard({
   const created =
     post.createdAt ? new Date(post.createdAt).toLocaleString() : "";
 
-  // --- MEDIA DECISION LOGIC ---
+  // --------------- Media decision ---------------
   const mediaUrl: string | null =
     (post.image_url as string | null | undefined) ??
     (post.video_url as string | null | undefined) ??
@@ -67,16 +67,19 @@ export default function PostCard({
     }
   }
 
-  // ✅ allow delete if:
-  //  - we know the author_id
-  //  - current user is that author OR a moderator
-  //  (works for anonymous posts too, but we never show who the author is)
-  const canDelete =
-    !!user &&
-    post.author_id &&
-    (user.id === post.author_id || user.is_moderator);
+  // --------------- Permissions (delete) ---------------
+  // Some places use isModerator, some use is_moderator – normalize here.
+  const isModerator: boolean =
+    !!(user?.isModerator ?? user?.is_moderator ?? false);
 
-  // toggle like
+  const isAuthor: boolean =
+    !!user?.id && !!post.author_id && user.id === post.author_id;
+
+  // ✅ Authors can delete their own posts
+  // ✅ Moderators can delete *any* post (even if author_id is missing)
+  const canDelete: boolean = !!user && (isAuthor || isModerator);
+
+  // --------------- Like handler ---------------
   async function handleToggleLike() {
     if (isLiking) return;
     setIsLiking(true);
@@ -104,6 +107,7 @@ export default function PostCard({
     }
   }
 
+  // --------------- Delete handler ---------------
   async function handleDeletePost() {
     if (isDeleting) return;
     if (!window.confirm("Delete this post? This cannot be undone.")) return;
@@ -136,6 +140,7 @@ export default function PostCard({
     post.author_profile_pic_url &&
     post.author_profile_pic_url.length > 0;
 
+  // --------------- Public profile click ---------------
   function handleGoToProfile() {
     if (!post.author_id || post.anonymous) return;
     navigate(`/profile/${post.author_id}`);
@@ -153,6 +158,7 @@ export default function PostCard({
           className: "mb-4 flex items-center gap-3 text-sm text-neutral-600",
         };
 
+  // --------------- Render ---------------
   return (
     <article className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
       {/* Media (image or video) */}
