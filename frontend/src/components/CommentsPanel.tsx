@@ -19,7 +19,7 @@ export default function CommentsPanel({
   postId: string;
   onCountChange?: (n: number) => void;
 }) {
-  const { user } = useAuth();
+  const { user } = useAuth() as any;
 
   const [comments, setComments] = useState<ApiComment[]>([]);
   const [text, setText] = useState("");
@@ -51,6 +51,7 @@ export default function CommentsPanel({
 
   useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [postId]);
 
   async function onSubmit(e: React.FormEvent) {
@@ -84,6 +85,27 @@ export default function CommentsPanel({
     }
   }
 
+  async function handleDeleteComment(id: string) {
+    if (!window.confirm("Delete this comment?")) return;
+
+    try {
+      const res = await fetch(`/api/comments/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const msg = await res.text();
+        console.error("Failed to delete comment", res.status, msg);
+        alert("Could not delete comment (maybe you are not allowed).");
+        return;
+      }
+      await load();
+    } catch (e) {
+      console.error("Error deleting comment", e);
+      alert("Error deleting comment.");
+    }
+  }
+
   return (
     <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
       <h4 className="mb-3 text-sm font-semibold text-neutral-800">Comments</h4>
@@ -97,21 +119,46 @@ export default function CommentsPanel({
 
       {!loading && !error && comments.length > 0 && (
         <div className="space-y-3">
-          {comments.map((c) => (
-            <div key={c._id} className="rounded-lg bg-white p-3 shadow-sm">
-              <div className="text-xs text-neutral-500">
-                {c.anonymous || !c.author_name ? "Anonymous" : c.author_name}
-              </div>
+          {comments.map((c) => {
+            const canDelete =
+              !!user &&
+              c.author_id &&
+              (user.id === c.author_id || user.is_moderator);
 
-              <div className="mt-1 text-sm text-neutral-800">{c.body}</div>
+            return (
+              <div key={c._id} className="rounded-lg bg-white p-3 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs text-neutral-500">
+                      {c.anonymous || !c.author_name
+                        ? "Anonymous"
+                        : c.author_name}
+                    </div>
 
-              {c.createdAt && (
-                <div className="mt-1 text-[11px] text-neutral-400">
-                  {new Date(c.createdAt).toLocaleString()}
+                    <div className="mt-1 text-sm text-neutral-800">
+                      {c.body}
+                    </div>
+
+                    {c.createdAt && (
+                      <div className="mt-1 text-[11px] text-neutral-400">
+                        {new Date(c.createdAt).toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+
+                  {canDelete && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteComment(c._id)}
+                      className="text-[11px] text-red-500 hover:underline"
+                    >
+                      Delete
+                    </button>
+                  )}
                 </div>
-              )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
       )}
 

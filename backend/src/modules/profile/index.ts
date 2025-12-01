@@ -245,15 +245,22 @@ export const profile = new Elysia({ prefix: "/users" })
       if ((userDoc as any)?.username)
         nameCandidates.push((userDoc as any).username);
 
-      const filter =
+      const authorFilter =
         nameCandidates.length > 0
           ? {
               $or: [
-                { author_id: userObjectId },              // normal case
+                { author_id: userObjectId }, // normal case
                 { author_name: { $in: nameCandidates } }, // legacy / no author_id
               ],
             }
           : { author_id: userObjectId };
+
+      // Only approved (or legacy with no status), same as main feed
+      const statusFilter = {
+        $or: [{ status: "approved" }, { status: { $exists: false } }],
+      };
+
+      const filter = { ...(authorFilter as any), ...(statusFilter as any) };
 
       const docs = await postsCollection
         .find(filter)

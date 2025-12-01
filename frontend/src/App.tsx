@@ -1,11 +1,12 @@
 import { Routes, Route, NavLink } from "react-router-dom";
 import Home from "./pages/Home";
 import Profile from "./pages/Profile";
+import PublicProfile from "./pages/PublicProfile";
 import Leaderboard from "./pages/Leaderboard";
 import About from "./pages/About";
 import Settings from "./pages/Settings";
-import Moderator from "./pages/Moderator"; // 🆕 moderator page
-import Upload from "./pages/Upload"; // 🆕 upload page
+import Moderator from "./pages/Moderator"; // moderator page
+import Upload from "./pages/Upload"; // upload page
 import {
   House,
   Trophy,
@@ -14,9 +15,9 @@ import {
   User,
   Settings2,
   ShieldCheck,
-  Upload as UploadIcon, // icon for Upload
+  Upload as UploadIcon,
 } from "lucide-react";
-import { useAuth } from "./Context/AuthContext"; // 🆕 auth hook
+import { useAuth } from "./Context/AuthContext";
 
 function SidebarLink({
   to,
@@ -43,7 +44,7 @@ function SidebarLink({
 }
 
 export default function App() {
-  const { user } = useAuth();
+  const { user } = useAuth() as any;
 
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900">
@@ -116,12 +117,14 @@ export default function App() {
         <main className="px-4 pb-12 pt-6 md:px-8">
           <Routes>
             <Route path="/" element={<Home />} />
+            {/* your own profile */}
             <Route path="/profile" element={<Profile />} />
+            {/* other users' profiles */}
+            <Route path="/profile/:userId" element={<PublicProfile />} />
             <Route path="/about" element={<About />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/upload" element={<Upload />} />
-            {/* 🆕 protected route (the page itself can also re-check isModerator) */}
             <Route path="/moderator" element={<Moderator />} />
           </Routes>
         </main>

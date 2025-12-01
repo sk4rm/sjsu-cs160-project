@@ -7,6 +7,7 @@ import { jwt as jwtPlugin } from "@elysiajs/jwt";
 const posts = database.collection("posts");
 const audits = database.collection("audits"); // optional
 const users = database.collection("users");
+const comments = database.collection("comments");
 
 const hex24 = "^[a-fA-F0-9]{24}$";
 
@@ -75,11 +76,11 @@ export const post = new Elysia({ prefix: "/posts" })
       const { body, request } = ctx as any;
 
       // We *don't* require login to create a post here – same as before.
-      // Anonymity is controlled by the checkbox / whether user exists on frontend.
       const anonymous: boolean = body.anonymous ?? true;
 
       // Decide author name – prefer DB lookup using author_id
       let authorName: string | null = null;
+      let authorProfilePic: string | null = null;
 
       if (body.author_id) {
         try {
@@ -94,6 +95,9 @@ export const post = new Elysia({ prefix: "/posts" })
               anyAuthor.name ||
               anyAuthor.email ||
               null;
+
+            authorProfilePic =
+              anyAuthor.avatarUrl ?? anyAuthor.profile_pic_url ?? null;
           }
         } catch (err) {
           console.error("[post.create] Failed to lookup author by id:", err);
@@ -113,6 +117,7 @@ export const post = new Elysia({ prefix: "/posts" })
 
       const doc: any = {
         author_name: authorName,
+        author_profile_pic_url: authorProfilePic,
         anonymous,
         body: body.body,
         // We always store under `image_url` so the rest of the app keeps working
@@ -120,6 +125,7 @@ export const post = new Elysia({ prefix: "/posts" })
         likes: body.likes ?? 0,
         comments: body.comments ?? 0,
         shares: body.shares ?? 0,
+        liked_by: [], // will contain ObjectIds of users who liked this post
         createdAt: new Date(),
         status, // moderation status
       };
@@ -179,6 +185,7 @@ export const post = new Elysia({ prefix: "/posts" })
     return items.map((p: any) => ({
       _id: p._id.toString(),
       author_name: p.author_name,
+      author_profile_pic_url: p.author_profile_pic_url ?? null,
       anonymous: !!p.anonymous,
       body: p.body,
       image_url: p.image_url ?? null,
@@ -346,25 +353,99 @@ export const post = new Elysia({ prefix: "/posts" })
   // ------------------------------
   .get(
     "/:id",
-    async ({ params }) => {
+    async (ctx) => {
+      const { params } = ctx as any;
+      const authUser = await requireUser(ctx as any);
+
       const item = await posts.findOne({
         _id: new ObjectId(params.id),
       });
+
       if (!item) return new Response("Not found", { status: 404 });
+
+      let liked = false;
+      if (authUser && Array.isArray((item as any).liked_by)) {
+        liked = (item as any).liked_by.some((id: any) =>
+          id instanceof ObjectId
+            ? id.equals(authUser._id)
+            : id?.toString() === authUser._id.toString()
+        );
+      }
 
       return {
         ...item,
         _id: item._id.toString(),
         author_id: item.author_id ? item.author_id.toString() : undefined,
+        liked,
       };
     },
     { params: t.Object({ id: t.String({ pattern: hex24 }) }) }
   )
 
   // ------------------------------
+  // LIST POSTS BY AUTHOR (public profile)
+  // ------------------------------
+  .get(
+    "/by-author/:authorId",
+    async (ctx) => {
+      const { params } = ctx as any;
+      const authUser = await requireUser(ctx as any);
+
+      const authorId = new ObjectId(params.authorId);
+
+      const items = await posts
+        .find(
+          {
+            author_id: authorId,
+            // 🚫 Do NOT expose anonymous posts on public profile
+            anonymous: { $ne: true },
+            // Only approved (or legacy posts with no status)
+            $or: [{ status: "approved" }, { status: { $exists: false } }],
+          } as any,
+          { sort: { createdAt: -1 } }
+        )
+        .toArray();
+
+      return items.map((p: any) => {
+        let liked = false;
+        if (authUser && Array.isArray(p.liked_by)) {
+          liked = p.liked_by.some((id: any) =>
+            id instanceof ObjectId
+              ? id.equals(authUser._id)
+              : id?.toString() === authUser._id.toString()
+          );
+        }
+
+        return {
+          _id: p._id.toString(),
+          author_name: p.author_name,
+          author_profile_pic_url: p.author_profile_pic_url ?? null,
+          anonymous: !!p.anonymous,
+          body: p.body,
+          image_url: p.image_url ?? null,
+          likes: p.likes ?? 0,
+          comments: p.comments ?? 0,
+          shares: p.shares ?? 0,
+          createdAt: p.createdAt,
+          author_id: p.author_id ? p.author_id.toString() : undefined,
+          status: p.status ?? "approved",
+          liked,
+        };
+      });
+    },
+    {
+      params: t.Object({
+        authorId: t.String({ pattern: hex24 }),
+      }),
+    }
+  )
+
+  // ------------------------------
   // LIST ALL POSTS (feed)
   // ------------------------------
-  .get("/", async () => {
+  .get("/", async (ctx) => {
+    const authUser = await requireUser(ctx as any);
+
     // Only show approved posts by default.
     // Treat old posts with no status as approved.
     const items = await posts
@@ -376,19 +457,33 @@ export const post = new Elysia({ prefix: "/posts" })
       )
       .toArray();
 
-    return items.map((p: any) => ({
-      _id: p._id.toString(),
-      author_name: p.author_name,
-      anonymous: !!p.anonymous,
-      body: p.body,
-      image_url: p.image_url ?? null,
-      likes: p.likes ?? 0,
-      comments: p.comments ?? 0,
-      shares: p.shares ?? 0,
-      createdAt: p.createdAt,
-      author_id: p.author_id ? p.author_id.toString() : undefined,
-      status: p.status ?? "approved",
-    }));
+    return items.map((p: any) => {
+      let liked = false;
+
+      if (authUser && Array.isArray(p.liked_by)) {
+        liked = p.liked_by.some((id: any) =>
+          id instanceof ObjectId
+            ? id.equals(authUser._id)
+            : id?.toString() === authUser._id.toString()
+        );
+      }
+
+      return {
+        _id: p._id.toString(),
+        author_name: p.author_name,
+        author_profile_pic_url: p.author_profile_pic_url ?? null,
+        anonymous: !!p.anonymous,
+        body: p.body,
+        image_url: p.image_url ?? null,
+        likes: p.likes ?? 0,
+        comments: p.comments ?? 0,
+        shares: p.shares ?? 0,
+        createdAt: p.createdAt,
+        author_id: p.author_id ? p.author_id.toString() : undefined,
+        status: p.status ?? "approved",
+        liked,
+      };
+    });
   })
 
   // ------------------------------
@@ -406,7 +501,6 @@ export const post = new Elysia({ prefix: "/posts" })
       if (body.shares !== undefined) update.shares = body.shares;
 
       // NOTE: status should NOT be updated through this route.
-      // Moderation must go through /:id/moderate.
 
       if (!Object.keys(update).length) {
         return { matched: 0, modified: 0 };
@@ -426,13 +520,37 @@ export const post = new Elysia({ prefix: "/posts" })
   )
 
   // ------------------------------
-  // DELETE POST
+  // DELETE POST (author or moderator)
   // ------------------------------
   .delete(
     "/:id",
-    async ({ params }) => {
-      const res = await posts.deleteOne({ _id: new ObjectId(params.id) });
-      return { deleted: res.deletedCount };
+    async (ctx) => {
+      const { params } = ctx as any;
+      const authUser = await requireUser(ctx as any);
+      if (!authUser) {
+        return new Response("Unauthorized", { status: 401 });
+      }
+
+      const _id = new ObjectId(params.id);
+      const postDoc = await posts.findOne({ _id });
+
+      if (!postDoc) {
+        return new Response("Not found", { status: 404 });
+      }
+
+      const isAuthor =
+        postDoc.author_id instanceof ObjectId &&
+        postDoc.author_id.equals(authUser._id);
+      const isModerator = !!authUser.is_moderator;
+
+      if (!isAuthor && !isModerator) {
+        return new Response("Forbidden", { status: 403 });
+      }
+
+      await posts.deleteOne({ _id });
+      await comments.deleteMany({ post_id: _id });
+
+      return { deleted: 1 };
     },
     { params: t.Object({ id: t.String({ pattern: hex24 }) }) }
   );

@@ -60,15 +60,23 @@ export const commentsModule = new Elysia({ prefix: "/comments" })
       if (authorObjectId) {
         try {
           const authorDoc = await users.findOne({ _id: authorObjectId });
-          authorName = (authorDoc as any)?.name ?? null;
+          const a: any = authorDoc;
+          authorName =
+            a?.name ??
+            a?.username ??
+            a?.handle ??
+            a?.email ??
+            null;
         } catch (err) {
-          console.error("[comment.create] Failed to load author from users:", err);
+          console.error(
+            "[comment.create] Failed to load author from users:",
+            err
+          );
         }
       }
 
       // Anonymous flag – if not logged in or no author id, force anonymous.
-      let anonymous: boolean =
-        body.anonymous ?? !authorObjectId;
+      let anonymous: boolean = body.anonymous ?? !authorObjectId;
 
       const doc: any = {
         post_id: postObjectId,
@@ -86,10 +94,7 @@ export const commentsModule = new Elysia({ prefix: "/comments" })
       const res = await comments.insertOne(doc);
 
       // increment comment count on the post
-      await posts.updateOne(
-        { _id: postObjectId },
-        { $inc: { comments: 1 } }
-      );
+      await posts.updateOne({ _id: postObjectId }, { $inc: { comments: 1 } });
 
       try {
         await audits.insertOne({
@@ -164,6 +169,8 @@ export const commentsModule = new Elysia({ prefix: "/comments" })
         return { matched: 0, modified: 0 };
       }
 
+      // Optional: ownership check could go here as well if you want
+
       const res = await comments.updateOne({ _id }, update);
 
       try {
@@ -190,12 +197,12 @@ export const commentsModule = new Elysia({ prefix: "/comments" })
   )
 
   // -----------------------------
-  // Delete a comment
+  // Delete a comment (owner or moderator)
   // -----------------------------
   .delete(
     "/:id",
     async (ctx) => {
-      const { params, user } = ctx as any;
+      const { params, user, request } = ctx as any;
 
       const _id = new ObjectId(params.id);
 
@@ -203,6 +210,20 @@ export const commentsModule = new Elysia({ prefix: "/comments" })
       const existing: any = await comments.findOne({ _id });
       if (!existing) {
         return { deleted: 0 };
+      }
+
+      if (!user) {
+        return new Response("Unauthorized", { status: 401 });
+      }
+
+      const isOwner =
+        existing.author_id &&
+        existing.author_id.toString() === user._id?.toString();
+
+      const isModerator = !!user.is_moderator;
+
+      if (!isOwner && !isModerator) {
+        return new Response("Forbidden", { status: 403 });
       }
 
       const res = await comments.deleteOne({ _id });
@@ -219,6 +240,11 @@ export const commentsModule = new Elysia({ prefix: "/comments" })
           actor_user_id: user?._id ?? null,
           actor_name: user?.name ?? null,
           target: { collection: "comments", id: _id },
+          ip:
+            request?.headers.get("x-forwarded-for") ??
+            request?.headers.get("cf-connecting-ip") ??
+            null,
+          ua: request?.headers.get("user-agent") ?? null,
           at: new Date(),
         });
       } catch {}

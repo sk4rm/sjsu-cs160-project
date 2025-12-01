@@ -24,6 +24,10 @@ export default function Home() {
     })();
   }, []);
 
+  function handlePostDeleted(id: string) {
+    setPosts((prev) => prev.filter((p) => p._id !== id));
+  }
+
   if (loading) return <div className="p-6">Loading posts…</div>;
   if (err) return <div className="p-6 text-red-600">Error: {err}</div>;
 
@@ -40,7 +44,9 @@ export default function Home() {
         {posts.length === 0 ? (
           <div>No posts yet.</div>
         ) : (
-          posts.map((p) => <PostCard key={p._id} post={p} />)
+          posts.map((p) => (
+            <PostCard key={p._id} post={p} onDeleted={handlePostDeleted} />
+          ))
         )}
       </section>
     </div>
