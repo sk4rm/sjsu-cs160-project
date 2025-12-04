@@ -4,6 +4,7 @@ export namespace AuthModel {
   export const RegistrationBody = t.Object({
     name: t.String({ minLength: 3 }),
     password: t.String({ minLength: 3 }),
+    school: t.String(),
     profile_pic_url: t.Optional(t.String()),
   });
 
@@ -25,6 +26,7 @@ export namespace AuthModel {
     name: t.String(),
     profile_pic_url: t.Optional(t.String()),
     is_moderator: t.Boolean(), // 👈 important
+    school: t.String(),
   });
 
   export const LoginError = t.Object({

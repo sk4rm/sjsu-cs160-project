@@ -21,6 +21,7 @@ type PendingPost = {
   shares?: number;
   createdAt?: string | Date;
   status?: "pending" | "approved" | "declined" | string;
+  school?: string | null;
 };
 
 function StatCard({
@@ -115,10 +116,7 @@ export default function Moderator() {
     }
   }, [user, navigate]);
 
-  async function handleModerate(
-    id: string,
-    decision: "approve" | "decline"
-  ) {
+  async function handleModerate(id: string, decision: "approve" | "decline") {
     try {
       setModeratingId(id);
       const res = await fetch(`/api/posts/${id}/moderate`, {
@@ -180,7 +178,6 @@ export default function Moderator() {
           value={pendingCount}
         />
       </section>
-    
 
       {/* Pending posts */}
       <section className="flex flex-col gap-4">
@@ -204,8 +201,7 @@ export default function Moderator() {
               const authorLabel = post.anonymous
                 ? "Anonymous"
                 : post.author_name || "Unnamed User";
-              const authorInitial =
-                authorLabel[0]?.toUpperCase() ?? "U";
+              const authorInitial = authorLabel[0]?.toUpperCase() ?? "U";
               const createdDate = post.createdAt
                 ? new Date(post.createdAt)
                 : null;
@@ -274,16 +270,13 @@ export default function Moderator() {
 
                     {/* Body */}
                     <div className="space-y-1">
-                      <p className="text-sm text-neutral-700">
-                        {post.body}
-                      </p>
+                      <p className="text-sm text-neutral-700">{post.body}</p>
                     </div>
 
-                    {/* Meta (placeholder university, since backend doesn't have it) */}
                     <div className="space-y-1 text-xs text-neutral-500">
                       <div className="flex items-center gap-1.5">
                         <MapPin className="h-3 w-3" />
-                        <span>EcoLeveling campus</span>
+                        <span>{post.school ?? "Unknown school"}</span>
                       </div>
                       {createdDate && (
                         <div className="flex items-center gap-1.5">
@@ -297,9 +290,7 @@ export default function Moderator() {
                     <div className="mt-auto flex gap-3 pt-1">
                       <button
                         className="flex-1 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-100 disabled:opacity-60"
-                        onClick={() =>
-                          handleModerate(post._id, "decline")
-                        }
+                        onClick={() => handleModerate(post._id, "decline")}
                         disabled={moderatingId === post._id}
                       >
                         {moderatingId === post._id && user.isModerator
@@ -308,9 +299,7 @@ export default function Moderator() {
                       </button>
                       <button
                         className="flex-1 rounded-full border border-emerald-500 bg-emerald-500 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-emerald-600 disabled:opacity-60"
-                        onClick={() =>
-                          handleModerate(post._id, "approve")
-                        }
+                        onClick={() => handleModerate(post._id, "approve")}
                         disabled={moderatingId === post._id}
                       >
                         {moderatingId === post._id && user.isModerator

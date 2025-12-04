@@ -51,7 +51,8 @@ const PostBody = t.Object({
     author_name: t.Optional(t.String()),
     anonymous: t.Optional(t.Boolean()),
 
-    quest_id: t.Optional(t.String()),
+  quest_id: t.Optional(t.String()),
+  school: t.Optional(t.String()),
 });
 
 // ------------------------------
@@ -91,108 +92,125 @@ export const post = new Elysia({ prefix: "/posts" })
         })
     )
 
-    // ------------------------------
-    // CREATE POST
-    // ------------------------------
-    .post(
-        "",
-        async (ctx) => {
-            const { body, request } = ctx as any;
+  // ------------------------------
+  // CREATE POST
+  // ------------------------------
+  .post(
+    "",
+    async (ctx) => {
+      const { body, request } = ctx as any;
 
-            // We *don't* require login to create a post here – same as before.
-            const anonymous: boolean = body.anonymous ?? true;
+      // We *don't* require login to create a post here – same as before.
+      const anonymous: boolean = body.anonymous ?? true;
 
-            // Decide author name – prefer DB lookup using author_id
-            let authorName: string | null = null;
-            let authorProfilePic: string | null = null;
+      // Decide author name – prefer DB lookup using author_id
+      let authorName: string | null = null;
+      let authorProfilePic: string | null = null;
+      let school: string | null = null; // ✅ NEW
 
-            if (body.author_id) {
-                try {
-                    const authorObjId = new ObjectId(body.author_id);
-                    const authorDoc = await users.findOne({ _id: authorObjId });
+      if (body.author_id) {
+        try {
+          const authorObjId = new ObjectId(body.author_id);
+          const authorDoc = await users.findOne({ _id: authorObjId });
 
-                    if (authorDoc && !anonymous) {
-                        const anyAuthor = authorDoc as any;
-                        authorName =
-                            anyAuthor.username ||
-                            anyAuthor.handle ||
-                            anyAuthor.name ||
-                            anyAuthor.email ||
-                            null;
+          if (authorDoc && !anonymous) {
+            const anyAuthor = authorDoc as any;
+            authorName =
+              anyAuthor.username ||
+              anyAuthor.handle ||
+              anyAuthor.name ||
+              anyAuthor.email ||
+              null;
 
-                        authorProfilePic =
-                            anyAuthor.avatarUrl ?? anyAuthor.profile_pic_url ?? null;
-                    }
-                } catch (err) {
-                    console.error("[post.create] Failed to lookup author by id:", err);
-                }
-            }
+            authorProfilePic =
+              anyAuthor.avatarUrl ?? anyAuthor.profile_pic_url ?? null;
 
-            // Fallback name if not anonymous and no DB name was found
-            if (!authorName && !anonymous) {
-                authorName = body.author_name ?? null;
-            }
+              if (anyAuthor.school) {
+                school = String(anyAuthor.school);
+              }
+          }
+          
+        } catch (err) {
+          console.error("[post.create] Failed to lookup author by id:", err);
+        }
+      }
 
-            // Pick whichever media field the frontend sent (image or video)
-            const mediaUrl: string | null = body.image_url ?? body.video_url ?? null;
+        // Fallback name if not anonymous and no DB name was found
+    if (!authorName && !anonymous) {
+      authorName = body.author_name ?? null;
+    }
 
-            // All new posts start as "pending"
-            const status: PostStatus = "pending";
+    // ✅ Fallback: body.school as a backup (optional)
+    if (!school && body.school) {
+      school = body.school.trim();
+    }
 
-            const doc: any = {
-                author_name: authorName,
-                author_profile_pic_url: authorProfilePic,
-                anonymous,
-                body: body.body,
-                // We always store under `image_url` so the rest of the app keeps working
-                image_url: mediaUrl,
-                likes: body.likes ?? 0,
-                comments: body.comments ?? 0,
-                shares: body.shares ?? 0,
-                liked_by: [], // will contain ObjectIds of users who liked this post
-                createdAt: new Date(),
-                status, // moderation status
+    // ✅ Enforce: every new post must have a school
+    if (!school) {
+      return new Response("School is required for posts", { status: 400 });
+    }
 
-                quest_id: body.quest_id ?? null,
-            };
+      // Pick whichever media field the frontend sent (image or video)
+      const mediaUrl: string | null = body.image_url ?? body.video_url ?? null;
 
-            // if frontend sends author_id, store it as ObjectId
-            if (body.author_id) {
-                try {
-                    doc.author_id = new ObjectId(body.author_id);
-                } catch (err) {
-                    console.error("[post.create] invalid author_id:", body.author_id, err);
-                }
-            }
+      // All new posts start as "pending"
+      const status: PostStatus = "pending";
 
-            const res = await posts.insertOne(doc);
+      const doc: any = {
+        author_name: authorName,
+        author_profile_pic_url: authorProfilePic,
+        anonymous,
+        body: body.body,
+        // We always store under `image_url` so the rest of the app keeps working
+        image_url: mediaUrl,
+        likes: body.likes ?? 0,
+        comments: body.comments ?? 0,
+        shares: body.shares ?? 0,
+        liked_by: [], // will contain ObjectIds of users who liked this post
+        createdAt: new Date(),
+        status, // moderation status
 
-            // Optional audit log
-            try {
-                await audits.insertOne({
-                    action: "post.create",
-                    actor_user_id: doc.author_id ?? null,
-                    actor_name: authorName ?? null,
-                    target: { collection: "posts", id: res.insertedId },
-                    ip:
-                        request?.headers.get("x-forwarded-for") ??
-                        request?.headers.get("cf-connecting-ip") ??
-                        null,
-                    ua: request?.headers.get("user-agent") ?? null,
-                    at: new Date(),
-                });
-            } catch {
-                // ignore audit failures
-            }
+        quest_id: body.quest_id ?? null,
+        school,
+      };
 
-            return {
-                id: res.insertedId.toString(),
-                status,
-                message: "Post submitted and is pending moderator approval.",
-            };
-        },
-        { body: PostBody }
-    )
+      // if frontend sends author_id, store it as ObjectId
+      if (body.author_id) {
+        try {
+          doc.author_id = new ObjectId(body.author_id);
+        } catch (err) {
+          console.error("[post.create] invalid author_id:", body.author_id, err);
+        }
+      }
+
+      const res = await posts.insertOne(doc);
+
+      // Optional audit log
+      try {
+        await audits.insertOne({
+          action: "post.create",
+          actor_user_id: doc.author_id ?? null,
+          actor_name: authorName ?? null,
+          target: { collection: "posts", id: res.insertedId },
+          ip:
+            request?.headers.get("x-forwarded-for") ??
+            request?.headers.get("cf-connecting-ip") ??
+            null,
+          ua: request?.headers.get("user-agent") ?? null,
+          at: new Date(),
+        });
+      } catch {
+        // ignore audit failures
+      }
+
+      return {
+        id: res.insertedId.toString(),
+        status,
+        message: "Post submitted and is pending moderator approval.",
+      };
+    },
+    { body: PostBody }
+  )
 
     // ------------------------------
     // LIST PENDING POSTS (Moderator)
@@ -208,21 +226,22 @@ export const post = new Elysia({ prefix: "/posts" })
             .find({ status: "pending" }, { sort: { createdAt: 1 } })
             .toArray();
 
-        return items.map((p: any) => ({
-            _id: p._id.toString(),
-            author_name: p.author_name,
-            author_profile_pic_url: p.author_profile_pic_url ?? null,
-            anonymous: !!p.anonymous,
-            body: p.body,
-            image_url: p.image_url ?? null,
-            likes: p.likes ?? 0,
-            comments: p.comments ?? 0,
-            shares: p.shares ?? 0,
-            createdAt: p.createdAt,
-            author_id: p.author_id ? p.author_id.toString() : undefined,
-            status: p.status ?? "pending",
-        }));
-    })
+    return items.map((p: any) => ({
+      _id: p._id.toString(),
+      author_name: p.author_name,
+      author_profile_pic_url: p.author_profile_pic_url ?? null,
+      anonymous: !!p.anonymous,
+      body: p.body,
+      image_url: p.image_url ?? null,
+      likes: p.likes ?? 0,
+      comments: p.comments ?? 0,
+      shares: p.shares ?? 0,
+      createdAt: p.createdAt,
+      author_id: p.author_id ? p.author_id.toString() : undefined,
+      status: p.status ?? "pending",
+      school: p.school ?? null,
+    }));
+  })
 
     // ------------------------------
     // MODERATE POST (approve / decline)
@@ -480,22 +499,22 @@ export const post = new Elysia({ prefix: "/posts" })
         }
     )
 
-    // ------------------------------
-    // LIST ALL POSTS (feed)
-    // ------------------------------
-    .get("/", async (ctx) => {
-        const authUser = await requireUser(ctx as any);
+  // ------------------------------
+  // LIST ALL POSTS (feed)
+  // ------------------------------
+  .get("/", async (ctx) => {
+    const authUser = await requireUser(ctx as any);
 
-        // Only show approved posts by default.
-        // Treat old posts with no status as approved.
-        const items = await posts
-            .find(
-                {
-                    $or: [{ status: "approved" }, { status: { $exists: false } }],
-                },
-                { sort: { createdAt: -1 } }
-            )
-            .toArray();
+    // Only show approved posts by default.
+    // Treat old posts with no status as approved.
+    const items = await posts
+      .find(
+        {
+          $or: [{ status: "approved" }, { status: { $exists: false } }],
+        },
+        { sort: { createdAt: -1 } }
+      )
+      .toArray();
 
         return items.map((p: any) => {
             let liked = false;
@@ -508,56 +527,58 @@ export const post = new Elysia({ prefix: "/posts" })
                 );
             }
 
-            return {
-                _id: p._id.toString(),
-                author_name: p.author_name,
-                author_profile_pic_url: p.author_profile_pic_url ?? null,
-                anonymous: !!p.anonymous,
-                body: p.body,
-                image_url: p.image_url ?? null,
-                likes: p.likes ?? 0,
-                comments: p.comments ?? 0,
-                shares: p.shares ?? 0,
-                createdAt: p.createdAt,
-                author_id: p.author_id ? p.author_id.toString() : undefined,
-                status: p.status ?? "approved",
-                liked,
-            };
-        });
-    })
+      return {
+        _id: p._id.toString(),
+        author_name: p.author_name,
+        author_profile_pic_url: p.author_profile_pic_url ?? null,
+        anonymous: !!p.anonymous,
+        body: p.body,
+        image_url: p.image_url ?? null,
+        likes: p.likes ?? 0,
+        comments: p.comments ?? 0,
+        shares: p.shares ?? 0,
+        createdAt: p.createdAt,
+        author_id: p.author_id ? p.author_id.toString() : undefined,
+        status: p.status ?? "approved",
+        liked,
+        // ✅ NEW
+        school: p.school ?? null,
+      };
+    });
+  })
 
-    // ------------------------------
-    // UPDATE POST
-    // ------------------------------
-    .patch(
-        "/:id",
-        async ({ params, body }) => {
-            const update: Record<string, unknown> = {};
+  // ------------------------------
+  // UPDATE POST
+  // ------------------------------
+  .patch(
+    "/:id",
+    async ({ params, body }) => {
+      const update: Record<string, unknown> = {};
 
-            if (body.image_url !== undefined) update.image_url = body.image_url;
-            if (body.body !== undefined) update.body = body.body;
-            if (body.likes !== undefined) update.likes = body.likes;
-            if (body.comments !== undefined) update.comments = body.comments;
-            if (body.shares !== undefined) update.shares = body.shares;
+      if (body.image_url !== undefined) update.image_url = body.image_url;
+      if (body.body !== undefined) update.body = body.body;
+      if (body.likes !== undefined) update.likes = body.likes;
+      if (body.comments !== undefined) update.comments = body.comments;
+      if (body.shares !== undefined) update.shares = body.shares;
 
-            // NOTE: status should NOT be updated through this route.
+      // NOTE: status should NOT be updated through this route.
 
-            if (!Object.keys(update).length) {
-                return { matched: 0, modified: 0 };
-            }
+      if (!Object.keys(update).length) {
+        return { matched: 0, modified: 0 };
+      }
 
-            const res = await posts.updateOne(
-                { _id: new ObjectId(params.id) },
-                { $set: update }
-            );
+      const res = await posts.updateOne(
+        { _id: new ObjectId(params.id) },
+        { $set: update }
+      );
 
-            return { matched: res.matchedCount, modified: res.modifiedCount };
-        },
-        {
-            params: t.Object({ id: t.String({ pattern: hex24 }) }),
-            body: t.Partial(PostBody),
-        }
-    )
+      return { matched: res.matchedCount, modified: res.modifiedCount };
+    },
+    {
+      params: t.Object({ id: t.String({ pattern: hex24 }) }),
+      body: t.Partial(PostBody),
+    }
+  )
 
     // ------------------------------
     // DELETE POST (author or moderator)
