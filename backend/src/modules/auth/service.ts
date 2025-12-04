@@ -6,11 +6,17 @@ const users = database.collection("users");
 
 export abstract class Auth {
   /**
-   * Registers a new user with the specified name, password, and an optional profile picture URL.
+   * Registers a new user with the specified name, password, school,
+   * and an optional profile picture URL.
    * @returns User ID if registration was successful.
    */
-  static async register({ name, password, profile_pic_url }: AuthModel.RegistrationBody) {
-    const isNameTaken = await users.findOne({ name: name });
+  static async register({
+    name,
+    password,
+    profile_pic_url,
+    school
+  }: AuthModel.RegistrationBody) {
+    const isNameTaken = await users.findOne({ name });
     if (isNameTaken) {
       throw status(
         409,
@@ -20,14 +26,24 @@ export abstract class Auth {
       );
     }
 
+    if (!school || !school.trim()) {
+      throw status(
+        400,
+        {
+          message: "School is required"
+        } satisfies AuthModel.RegistrationError
+      );
+    }
+
     const userData = {
-      name: name,
+      name,
       password: await Bun.password.hash(password),
       points: 0,
       is_moderator: false,
+      school: school.trim(), // <- now this is safe & defined
 
       // Only add this field if supplied to eliminate null fields.
-      ...(profile_pic_url && { profile_pic_url: profile_pic_url })
+      ...(profile_pic_url && { profile_pic_url })
     };
 
     console.info(`Creating new user ${name}...`);
@@ -44,7 +60,7 @@ export abstract class Auth {
   static async login({ name, password }: AuthModel.LoginBody) {
     console.info(`Attempting to login user "${name}"...`);
 
-    const user = await users.findOne({ name: name });
+    const user = await users.findOne({ name });
 
     if (user) {
       console.info("Verifying credentials...");
@@ -60,8 +76,8 @@ export abstract class Auth {
           name: user.name,
           // only add if exists
           ...(user.profile_pic_url && { profile_pic_url: user.profile_pic_url }),
-          // ⭐ NEW: pass through moderator flag from Mongo
-          is_moderator: !!user.is_moderator
+          is_moderator: !!user.is_moderator,
+          school: user.school ?? undefined       // <- optional, but handy
         } satisfies AuthModel.LoginResponse;
       } else {
         console.error("Password hash does not match.");
@@ -70,7 +86,6 @@ export abstract class Auth {
       console.error(`Couldn't find user "${name}" in database.`);
     }
 
-    // 🔁 Small fix: use LoginError instead of RegistrationError
     throw status(
       401,
       {

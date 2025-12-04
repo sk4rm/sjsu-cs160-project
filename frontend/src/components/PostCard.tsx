@@ -18,6 +18,7 @@ export type ApiPost = {
   shares?: number;
   createdAt?: string | Date;
   liked?: boolean; // did the *current* user like this post?
+  school?: string | null;
 };
 
 export default function PostCard({
@@ -31,9 +32,7 @@ export default function PostCard({
   const { user } = useAuth() as any;
 
   const [open, setOpen] = useState(false);
-  const [commentCount, setCommentCount] = useState<number>(
-    post.comments ?? 0
-  );
+  const [commentCount, setCommentCount] = useState<number>(post.comments ?? 0);
 
   const [likeCount, setLikeCount] = useState<number>(post.likes ?? 0);
   const [isLiked, setIsLiked] = useState<boolean>(!!post.liked);
@@ -49,8 +48,11 @@ export default function PostCard({
 
   const authorInitial = baseAuthorLabel[0]?.toUpperCase() ?? "U";
 
-  const created =
-    post.createdAt ? new Date(post.createdAt).toLocaleString() : "";
+  const created = post.createdAt
+    ? new Date(post.createdAt).toLocaleString()
+    : "";
+
+  const schoolLabel = post.school?.trim() || "";
 
   // --------------- Media decision ---------------
   const mediaUrl: string | null =
@@ -69,8 +71,11 @@ export default function PostCard({
 
   // --------------- Permissions (delete) ---------------
   // Some places use isModerator, some use is_moderator – normalize here.
-  const isModerator: boolean =
-    !!(user?.isModerator ?? user?.is_moderator ?? false);
+  const isModerator: boolean = !!(
+    user?.isModerator ??
+    user?.is_moderator ??
+    false
+  );
 
   const isAuthor: boolean =
     !!user?.id && !!post.author_id && user.id === post.author_id;
@@ -166,7 +171,11 @@ export default function PostCard({
         {mediaType === "image" && mediaUrl ? (
           <img src={mediaUrl} alt="" className="h-full w-full object-cover" />
         ) : mediaType === "video" && mediaUrl ? (
-          <video src={mediaUrl} controls className="h-full w-full object-cover" />
+          <video
+            src={mediaUrl}
+            controls
+            className="h-full w-full object-cover"
+          />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-neutral-400">
             No media
@@ -192,7 +201,14 @@ export default function PostCard({
 
           <div className="leading-tight">
             <div className="text-neutral-900">{baseAuthorLabel}</div>
-            {created && <div className="text-xs">{created}</div>}
+
+            {(schoolLabel || created) && (
+              <div className="text-xs text-neutral-500">
+                {schoolLabel && <span>{schoolLabel}</span>}
+                {schoolLabel && created && <span className="mx-1">•</span>}
+                {created && <span>{created}</span>}
+              </div>
+            )}
           </div>
         </div>
 
@@ -211,8 +227,7 @@ export default function PostCard({
             >
               <span
                 className={
-                  "text-lg " +
-                  (isLiked ? "text-red-500" : "text-neutral-400")
+                  "text-lg " + (isLiked ? "text-red-500" : "text-neutral-400")
                 }
               >
                 ❤️
