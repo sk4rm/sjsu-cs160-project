@@ -13,6 +13,27 @@ const hex24 = "^[a-fA-F0-9]{24}$";
 
 type PostStatus = "pending" | "approved" | "declined";
 
+// 👇 NEW: how many points each quest is worth
+const QUEST_POINTS: Record<string, number> = {
+  "pick-litter": 10,
+  "green-innovation": 15,
+  "before-after-cleanup": 20,
+  "reusable-bottle": 10,
+  "plant-care": 10,
+  "recycling-check": 10,
+
+  // If your frontend ever uses simple IDs like "q1", "q2", etc,
+  // you can map them here too:
+  q1: 10,
+  q2: 15,
+  q3: 20,
+};
+
+function getQuestPoints(id: string | undefined | null): number {
+  if (!id) return 0;
+  return QUEST_POINTS[id] ?? 0;
+}
+
 const PostBody = t.Object({
   body: t.String(),
 
@@ -28,6 +49,8 @@ const PostBody = t.Object({
   author_id: t.Optional(t.String({ pattern: hex24 })),
   author_name: t.Optional(t.String()),
   anonymous: t.Optional(t.Boolean()),
+
+  quest_id: t.Optional(t.String()),
 });
 
 // ------------------------------
@@ -128,6 +151,8 @@ export const post = new Elysia({ prefix: "/posts" })
         liked_by: [], // will contain ObjectIds of users who liked this post
         createdAt: new Date(),
         status, // moderation status
+
+        quest_id: body.quest_id ?? null,
       };
 
       // if frontend sends author_id, store it as ObjectId
@@ -199,79 +224,93 @@ export const post = new Elysia({ prefix: "/posts" })
   })
 
   // ------------------------------
-  // MODERATE POST (approve / decline)
-  // ------------------------------
-  .post(
-    "/:id/moderate",
-    async (ctx) => {
-      const { params, body, request } = ctx as any;
+// MODERATE POST (approve / decline)
+// ------------------------------
+.post(
+  "/:id/moderate",
+  async (ctx) => {
+    const { params, body, request } = ctx as any;
 
-      const modUser = await requireModerator(ctx as any);
-      if (!modUser) {
-        return new Response("Forbidden", { status: 403 });
-      }
-
-      const decision: "approve" | "decline" = body.decision;
-      const reason: string | undefined = body.reason;
-
-      if (decision !== "approve" && decision !== "decline") {
-        return new Response("Invalid decision", { status: 400 });
-      }
-
-      const status: PostStatus =
-        decision === "approve" ? "approved" : "declined";
-
-      const _id = new ObjectId(params.id);
-
-      const update: any = {
-        status,
-        moderatedAt: new Date(),
-        moderatedBy: modUser._id ?? null,
-      };
-
-      if (status === "declined" && reason) {
-        update.declineReason = reason;
-      }
-
-      const res = await posts.updateOne({ _id }, { $set: update });
-
-      if (res.matchedCount === 0) {
-        return new Response("Post not found", { status: 404 });
-      }
-
-      // Optional audit log
-      try {
-        await audits.insertOne({
-          action: "post.moderate",
-          actor_user_id: modUser._id ?? null,
-          actor_name: modUser.name ?? null,
-          decision,
-          reason: reason ?? null,
-          target: { collection: "posts", id: _id },
-          ip:
-            request?.headers.get("x-forwarded-for") ??
-            request?.headers.get("cf-connecting-ip") ??
-            null,
-          ua: request?.headers.get("user-agent") ?? null,
-          at: new Date(),
-        });
-      } catch {
-        // ignore audit failures
-      }
-
-      return {
-        success: true,
-        status,
-      };
-    },
-    {
-      params: t.Object({ id: t.String({ pattern: hex24 }) }),
-      body: t.Object({
-        decision: t.Union([t.Literal("approve"), t.Literal("decline")]),
-        reason: t.Optional(t.String()),
-      }),
+    const modUser = await requireModerator(ctx as any);
+    if (!modUser) {
+      return new Response("Forbidden", { status: 403 });
     }
-  )
+
+    const decision: "approve" | "decline" = body.decision;
+    const reason: string | undefined = body.reason;
+
+    if (decision !== "approve" && decision !== "decline") {
+      return new Response("Invalid decision", { status: 400 });
+    }
+
+    const status: PostStatus =
+      decision === "approve" ? "approved" : "declined";
+
+    const _id = new ObjectId(params.id);
+
+    // Load the post so we know author + quest
+    const postDoc = await posts.findOne({ _id });
+    if (!postDoc) {
+      return new Response("Post not found", { status: 404 });
+    }
+
+    const update: any = {
+      status,
+      moderatedAt: new Date(),
+      moderatedBy: modUser._id ?? null,
+    };
+
+    if (status === "declined" && reason) {
+      update.declineReason = reason;
+    }
+
+    // Award quest points if approved
+    if (status === "approved" && postDoc.author_id) {
+      const questPoints = getQuestPoints((postDoc as any).quest_id);
+      if (questPoints > 0) {
+        await users.updateOne(
+          { _id: postDoc.author_id as ObjectId },
+          { $inc: { points: questPoints } }
+        );
+      }
+    }
+
+    await posts.updateOne({ _id }, { $set: update });
+
+    // Optional audit log
+    try {
+      await audits.insertOne({
+        action: "post.moderate",
+        actor_user_id: modUser._id ?? null,
+        actor_name: modUser.name ?? null,
+        decision,
+        reason: reason ?? null,
+        target: { collection: "posts", id: _id },
+        ip:
+          request?.headers.get("x-forwarded-for") ??
+          request?.headers.get("cf-connecting-ip") ??
+          null,
+        ua: request?.headers.get("user-agent") ?? null,
+        at: new Date(),
+      });
+    } catch {
+      // ignore audit failures
+    }
+
+    return {
+      success: true,
+      status,
+    };
+  },
+  {
+    params: t.Object({ id: t.String({ pattern: hex24 }) }),
+    body: t.Object({
+      decision: t.Union([t.Literal("approve"), t.Literal("decline")]),
+      reason: t.Optional(t.String()),
+    }),
+  }
+)
+
 
   // ------------------------------
   // TOGGLE LIKE (logged-in users only)

@@ -10,6 +10,7 @@ import { post } from "./modules/posts";
 import { commentsModule } from "./modules/comment";
 import { currentUser } from "./plugins/currentUser";
 import { profile } from "./modules/profile";
+import { quests } from "./modules/quests"; // 👈 NEW
 
 const app = new Elysia()
   .use(staticPlugin())
@@ -35,6 +36,7 @@ app.group("/api", (api) =>
     .use(profile)
     .use(post)
     .use(commentsModule)
+    .use(quests) // 👈 NEW: /api/quests/today
 );
 
 app.listen(3000);
