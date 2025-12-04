@@ -33,42 +33,38 @@ export abstract class User {
    */
   static async getLeaderboard(limit: number = 50) {
     const postsCollection = database.collection("posts");
-
+  
     const pipeline = [
       {
-        // 1) Only approved posts (or legacy posts with no status)
-        //    and only posts that belong to a real, non-anonymous user.
+        // 1) Approved + non-anonymous posts
         $match: {
           $and: [
             {
               $or: [
                 { status: "approved" },
-                { status: { $exists: false } }, // old posts before moderation
+                { status: { $exists: false } },
               ],
             },
-            { anonymous: { $ne: true } }, // ignore anonymous posts
+            { anonymous: { $ne: true } },
             { author_id: { $exists: true, $ne: null } },
           ],
         },
       },
+  
+      // 2) Count posts + likes per user
       {
-        // 2) Group by author_id and accumulate likes + post count
         $group: {
           _id: "$author_id",
           likes: { $sum: { $ifNull: ["$likes", 0] } },
           posts: { $sum: 1 },
         },
       },
+  
+      // ⭐ NEW: sort will be moved AFTER user join (so we can sort by points)
+      { $limit: limit },
+  
+      // 3) Join users
       {
-        // 3) Sort by likes, then by # of posts
-        $sort: { likes: -1, posts: -1 },
-      },
-      {
-        // 4) Limit the number of rows
-        $limit: limit,
-      },
-      {
-        // 5) Join with users collection by _id = author_id
         $lookup: {
           from: "users",
           localField: "_id",
@@ -76,49 +72,63 @@ export abstract class User {
           as: "userDoc",
         },
       },
+  
+      // 4) Unwind
       {
-        // 6) Unwind but allow rows even if userDoc is missing
         $unwind: {
           path: "$userDoc",
           preserveNullAndEmptyArrays: true,
         },
       },
+  
+      // ⭐ NEW: Move the sort here so we have access to userDoc.points
+      { $sort: { "userDoc.points": -1 } },
+  
+      // 5) Final projection
       {
-        // 7) Final projection
         $project: {
           userId: "$_id",
           likes: 1,
           posts: 1,
-          name: {
-            $ifNull: ["$userDoc.name", "Anonymous"],
-          },
+  
+          name: { $ifNull: ["$userDoc.name", "Anonymous"] },
           username: "$userDoc.username",
           profile_pic_url: "$userDoc.profile_pic_url",
+  
+          // ⭐ NEW FIELDS
+          school: "$userDoc.school",
+          points: "$userDoc.points",
         },
       },
     ];
-
+  
     const results = await postsCollection.aggregate(pipeline).toArray();
-
-    // 8) Map to the shape expected by the frontend
+  
+    // Final map for frontend
     return results.map((u: any) => {
-      const userId: ObjectId | null = u.userId ?? null;
-      const name: string = u.name ?? "Anonymous";
-      const username: string | null = u.username ?? null;
-
+      const userId = u.userId?.toString() ?? "anonymous";
+  
+      const name = u.name ?? "Anonymous";
+      const username = u.username;
+  
       const handle =
         username && typeof username === "string"
           ? `@${username}`
           : "@" + name.toLowerCase().replace(/\s+/g, "");
-
+  
       return {
-        id: userId ? userId.toString() : `anon-${name}`,
+        id: userId,
         name,
         handle,
         avatarUrl: u.profile_pic_url ?? null,
+  
         posts: u.posts ?? 0,
         likes: u.likes ?? 0,
+  
+        // ⭐ Frontend can now use these:
+        points: u.points ?? 0,
+        school: u.school ?? null,
       };
     });
   }
-}
+}  

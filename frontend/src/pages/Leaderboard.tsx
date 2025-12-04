@@ -8,6 +8,8 @@ type Leader = {
   initial?: string;          // fallback if no avatar
   posts: number;
   likes: number;
+  points: number;            // <- NEW
+  school?: string | null;    // <- NEW
 };
 
 function RankIcon({ rank }: { rank: number }) {
@@ -47,7 +49,7 @@ function Avatar({
 
 function LeaderRow({ rank, user }: { rank: number; user: Leader }) {
   return (
-    <div className="rounded-2xl border border-neutral-200 bg-white/70 px-5 py-4 shadow-sm ring-1 ring-neutral-200/60 hover:ring-neutral-300 transition">
+    <div className="rounded-2xl border border-neutral-200 bg-white/70 px-5 py-4 shadow-sm ring-1 ring-neutral-200/60 transition hover:ring-neutral-300">
       <div className="flex items-center justify-between gap-4">
         {/* left cluster */}
         <div className="flex items-center gap-4">
@@ -64,15 +66,24 @@ function LeaderRow({ rank, user }: { rank: number; user: Leader }) {
               </p>
               {rank <= 3 && <Badge text={`Top ${rank}`} />}
             </div>
-            <p className="truncate text-sm text-neutral-500">{user.handle}</p>
+            <p className="truncate text-sm text-neutral-500">
+              {user.handle}
+            </p>
+            {user.school && (
+              <p className="truncate text-xs text-neutral-400">
+                {user.school}
+              </p>
+            )}
           </div>
         </div>
 
         {/* right stats */}
         <div className="text-right leading-tight">
-          <div className="text-2xl font-bold">{user.posts}</div>
-          <div className="text-xs text-neutral-500">posts</div>
-          <div className="mt-2 text-sm text-neutral-600">{user.likes} likes</div>
+          <div className="text-2xl font-bold">{user.points}</div>
+          <div className="text-xs text-neutral-500">points</div>
+          <div className="mt-2 text-xs text-neutral-500">
+            {user.posts} posts • {user.likes} likes
+          </div>
         </div>
       </div>
     </div>
@@ -87,7 +98,7 @@ export default function Leaderboard() {
     const load = async () => {
       try {
         const res = await fetch("http://localhost:3000/api/leaderboard");
-        const data = await res.json();
+        const data: Leader[] = await res.json();
         setLeaders(data);
       } catch (error) {
         console.error("Failed to load leaderboard:", error);
@@ -99,6 +110,9 @@ export default function Leaderboard() {
     load();
   }, []);
 
+  // Make sure ordering is by points (in case backend forgets)
+  const sorted = [...leaders].sort((a, b) => b.points - a.points);
+
   return (
     <div className="px-4 pb-12 pt-6 md:px-8">
       {/* header */}
@@ -108,7 +122,7 @@ export default function Leaderboard() {
           <h1 className="text-2xl font-bold tracking-tight">Leaderboard</h1>
         </div>
         <p className="mt-2 text-neutral-600">
-          Top contributors to our nature photography community
+          See which school is leveling up
         </p>
       </header>
 
@@ -117,7 +131,7 @@ export default function Leaderboard() {
         <p className="text-neutral-500">Loading leaderboard...</p>
       ) : (
         <div className="space-y-4">
-          {leaders.map((u, i) => (
+          {sorted.map((u, i) => (
             <LeaderRow key={u.id} rank={i + 1} user={u} />
           ))}
         </div>
