@@ -5,48 +5,55 @@ type Quest = {
   id: string;
   title: string;
   description: string;
+  points: number;
 };
 
 /**
  * Pool of all possible quests.
  * The server will choose 3 of these each day, based on the date.
  */
-const QUEST_POOL: Quest[] = [
+export const QUEST_POOL: Quest[] = [
   {
     id: "pick-litter",
     title: "Pick up 5 pieces of litter",
     description:
-      "Upload a photo of trash you removed from campus or your neighborhood."
+      "Upload a photo of trash you removed from campus or your neighborhood.",
+      points: 10
   },
   {
     id: "reusable-bottle",
     title: "Bring a reusable bottle",
     description:
-      "Show your reusable water bottle or mug instead of a single-use plastic bottle."
+      "Show your reusable water bottle or mug instead of a single-use plastic bottle.",
+      points: 5
   },
   {
     id: "green-innovation",
     title: "Spot a green innovation",
     description:
-      "Share a picture of an eco-friendly feature (solar panels, refill station, bike racks, etc.)."
+      "Share a picture of an eco-friendly feature (solar panels, refill station, bike racks, etc.).",
+      points: 5
   },
   {
     id: "before-after-cleanup",
     title: "Before & after cleanup",
     description:
-      "Take a before and after photo of an area you cleaned or organized."
+      "Take a before and after photo of an area you cleaned or organized.",
+      points: 50
   },
   {
     id: "plant-care",
     title: "Care for a plant",
     description:
-      "Show yourself watering, repotting, or tending to a plant or garden."
+      "Show yourself watering, repotting, or tending to a plant or garden.",
+      points: 10
   },
   {
     id: "recycling-check",
     title: "Check recycling labels",
     description:
-      "Take a photo of you correctly sorting items into recycling / compost / trash."
+      "Take a photo of you correctly sorting items into recycling / compost / trash.",
+      points: 20
   }
   // add more quests here whenever you want!
 ];
