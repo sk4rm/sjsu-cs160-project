@@ -137,7 +137,7 @@ export default function Upload() {
               id: q.id ?? `q-${idx}`,
               title: q.title ?? `Quest ${idx + 1}`,
               description: q.description ?? "",
-              points: typeof q.points === "number" ? q.points : 10, // default
+              points: typeof q.points === "number" ? q.points : 0, // default
             }))
           );
         }

@@ -29,12 +29,12 @@ export const profile = new Elysia({ prefix: "/users" })
       const user = await usersCollection.findOne({
         _id: new ObjectId(userId),
       });
-
+      
       if (!user) {
-        set.status = 404;
-        return { message: "User not found" };
-      }
-
+          set.status = 404;
+          return { message: "User not found" };
+        }
+        
       const idStr = user._id.toString();
       const name: string = user.name ?? "";
       const username: string | null = user.username ?? null;
@@ -56,7 +56,7 @@ export const profile = new Elysia({ prefix: "/users" })
         bio,
         avatarUrl,
         joinedAt,
-        stats: (user as any).stats ?? undefined,
+        points: user.points ?? undefined
       };
     },
     {
