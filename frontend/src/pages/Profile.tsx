@@ -14,10 +14,7 @@ type User = {
   joinedAt?: string;
   bio?: string;
   avatarUrl?: string | null;
-  stats?: {
-    posts: number;
-    points: number;
-  };
+  points: number;
 };
 
 type Post = {
@@ -31,9 +28,7 @@ const API_BASE = "http://localhost:3000/api";
 
 /** ---------- School options ---------- */
 const SCHOOL_OPTIONS = [
-  "San José State University",
   "San Jose State University",
-  "SJSU",
   "UC Berkeley",
   "UC Davis",
   "UC Los Angeles",
@@ -473,7 +468,7 @@ export default function Profile() {
                     Points
                   </p>
                   <p className="mt-1 text-lg font-semibold text-neutral-900">
-                    {user.stats?.points ?? 0}
+                    {user.points ?? 0}
                   </p>
                 </div>
                 <div className="rounded-xl bg-neutral-50 p-3 text-center">
@@ -481,7 +476,7 @@ export default function Profile() {
                     Level
                   </p>
                   <p className="mt-1 text-lg font-semibold text-neutral-900">
-                    {Math.floor((user.stats?.points ?? 0) / 100) + 1}
+                    {Math.floor((user.points ?? 0) / 100) + 1}
                   </p>
                 </div>
               </div>

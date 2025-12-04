@@ -1,4 +1,3 @@
-import { Cookie } from "lucide-react";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 type User = {
