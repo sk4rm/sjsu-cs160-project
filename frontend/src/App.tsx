@@ -66,14 +66,19 @@ export default function App() {
               label="Home"
             />
             <SidebarLink
+              to="/leaderboard"
+              icon={<Trophy className="h-5 w-5" />}
+              label="Leaderboard"
+            />
+            <SidebarLink
               to="/profile"
               icon={<User className="h-5 w-5" />}
               label="Profile"
             />
             <SidebarLink
-              to="/leaderboard"
-              icon={<Trophy className="h-5 w-5" />}
-              label="Leaderboard"
+              to="/upload"
+              icon={<UploadIcon className="h-5 w-5" />}
+              label="Upload"
             />
           </nav>
 
@@ -90,11 +95,6 @@ export default function App() {
               to="/about"
               icon={<Info className="h-5 w-5" />}
               label="About"
-            />
-            <SidebarLink
-              to="/upload"
-              icon={<UploadIcon className="h-5 w-5" />}
-              label="Upload"
             />
           </nav>
 

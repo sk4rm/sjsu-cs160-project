@@ -73,8 +73,8 @@ export default function Moderator() {
   const [moderatingId, setModeratingId] = useState<string | null>(null);
 
   // local counters for this session
-  const [approvedToday, setApprovedToday] = useState(0);
-  const [declinedToday, setDeclinedToday] = useState(0);
+  //const [approvedToday, setApprovedToday] = useState(0);
+  //const [declinedToday, setDeclinedToday] = useState(0);
 
   // Protect route: only moderators allowed
   useEffect(() => {
@@ -138,11 +138,13 @@ export default function Moderator() {
       // Remove from list on success
       setPendingPosts((prev) => prev.filter((p) => p._id !== id));
 
+      /*
       if (decision === "approve") {
         setApprovedToday((n) => n + 1);
       } else {
         setDeclinedToday((n) => n + 1);
       }
+      */
     } catch (err) {
       console.error("Error moderating post", err);
     } finally {
@@ -177,17 +179,8 @@ export default function Moderator() {
           label="Pending Review"
           value={pendingCount}
         />
-        <StatCard
-          icon={<CheckCircle2 className="h-4 w-4 text-emerald-500" />}
-          label="Approved Today"
-          value={approvedToday}
-        />
-        <StatCard
-          icon={<XCircle className="h-4 w-4 text-rose-500" />}
-          label="Declined Today"
-          value={declinedToday}
-        />
       </section>
+    
 
       {/* Pending posts */}
       <section className="flex flex-col gap-4">
